@@ -157,8 +157,6 @@ export class BattleScene {
     this.ringGeo = new THREE.RingGeometry(0.88, 1, 56).rotateX(-Math.PI / 2);
     this.discGeo = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2);
     this.slashGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-    this.boltGeo = new THREE.CylinderGeometry(0.18, 0.35, 16, 6).translate(0, 8, 0);
-    this.pillarGeo = new THREE.CylinderGeometry(1, 1, 14, 24, 1, true).translate(0, 7, 0);
     this.coinGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.07, 14);
     this.coinMat = new THREE.MeshLambertMaterial({ color: 0xf5c04a, emissive: 0x6b4a00 });
     this.partGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
@@ -452,8 +450,7 @@ export class BattleScene {
     b.tag?.remove();
     b.aura.visible = false;
     b.model.play('Dead', { fade: 0.15, once: true });
-    this._glowFlash(b.group.position, 9, 0xff3b5c, 0.8, 2);
-    this._sparks(b.group.position, 30, 0xff5c7a, 10, 1, { up: 1.5 });
+    this.qfx.bossDeath(b.group.position, 0xff3b5c); // 魔法陣 + 光柱 + 魂火漩渦（three.quarks）
     this.shake = Math.max(this.shake, 0.4);
     const tick = (dt) => b.model.mixer.update(dt);
     this.dyingBosses = [...(this.dyingBosses || []), { b, t: 2.8, tick }];
@@ -559,9 +556,13 @@ export class BattleScene {
     this.scene.add(disc);
     this.effects.push({ mesh: disc, t: 0, life: T, update: (e, k) => { disc.scale.setScalar(R * k); mat.opacity = 0.2 + 0.25 * k; } });
     this._ring(at, R, R, T, 0xff2a2a);
+    this.qfx.telegraph(at, R, T); // 越來越亮的紅色魔法陣 + 往內吸的火點
     this._later(T, () => {
       if (!this.boss || this.boss !== m) return;
       this._glowFlash(at, 6, 0xff5a3a, 0.4, 0.6);
+      this.qfx.crack(at, R + 0.6, 0xff4d2a, 1);
+      this.qfx.debris(at, 0x5a3a3a, 10, 8);
+      this.qfx.light(at, 0xff4d2a, 45, 0.4, 14);
       this._wall(at, 0.5, R + 1, 1.6, 0xff4d2a, 0.45);
       for (let i = 0; i < 5; i++) this._spike({ x: at.x + rand(-R, R) * 0.7, z: at.z + rand(-R, R) * 0.7 }, 0x5a3a3a, 0.6, 1);
       if (m.model) { // 吸血鬼：衝刺一下再回到待機
@@ -764,7 +765,7 @@ export class BattleScene {
     }
     this._ring(pos, 0.4, 3, 0.4, 0xf3e3c0);
     this._glowFlash(pos, 3, a.riding ? 0xfff1c4 : 0xffffff, 0.35, 0.8);
-    for (let i = 0; i < 10; i++) this._particle(pos, 0xb89a6a);
+    this.qfx.dust(pos, 0xb89a6a, 6);
   }
 
   setSkills(defs, loadout) {
@@ -881,12 +882,7 @@ export class BattleScene {
 
   levelUp() {
     const p = this.player.group.position;
-    const mat = new THREE.MeshBasicMaterial({ color: 0xf5c04a, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-    const m = new THREE.Mesh(this.pillarGeo, mat);
-    m.position.copy(p);
-    this.scene.add(m);
-    this.effects.push({ mesh: m, t: 0, life: 0.9, update: (e, k) => { m.position.copy(this.player.group.position); const r = 0.9 - k * 0.6; m.scale.set(r, 1, r); mat.opacity = 0.35 * (1 - k); } });
-    this._ring(p, 0.5, 6, 0.8, 0xf5c04a);
+    this.qfx.levelUp(this.player); // 金色光旋 + 光柱（three.quarks）
     this._number(p, 'LEVEL UP', 'lvl');
   }
 
@@ -1254,7 +1250,7 @@ export class BattleScene {
       const ratio = dmg / Math.max(1, this._dps(this.player) * 0.8);
       const size = Math.min(2.1, Math.max(0.8, 0.8 + 0.32 * Math.log2(1 + ratio)));
       this._number(m.group.position, fmt(dmg), crit ? 'crit' : m.boss ? 'boss' : 'dmg', size);
-      if (crit && Math.random() < 0.5) this._sparks(m.group.position, 2, 0xffd166, 5, 0.3);
+      this.qfx.hit(m.group.position, a.feverTime > 0 ? 0xffe08a : styleOf(a.wtype).color, crit); // three.quarks 打擊感（有預算上限）
     }
     else if (Math.random() < 0.35) this._number(m.group.position, fmt(dmg), 'ally');
     if (m.hp <= 0) this._kill(m, a.local);
@@ -1277,7 +1273,7 @@ export class BattleScene {
       }
     }
     const pos = m.group.position;
-    for (let i = 0; i < (m.elite ? 14 : 6); i++) this._particle(pos);
+    this.qfx.death(pos, this.mobColor ?? 0xffffff, m.elite); // 碎光 + 魂火（菁英多光柱）
     const coins = m.elite ? 10 : Math.random() < 0.6 ? 2 : 1;
     for (let i = 0; i < coins; i++) this._coin(pos);
     if (m.elite) { if (byLocal) vibrate(40); this._ring(pos, 0.5, 4, 0.5, 0xffd166); }
@@ -1371,12 +1367,7 @@ export class BattleScene {
   _disc(pos, size, life, color) { this.qfx.disc(pos, size, life, color); }
 
   _bolt(pos, color = 0xbfe6ff, shake = true) {
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-    const mesh = new THREE.Mesh(this.boltGeo, mat);
-    mesh.position.set(pos.x, this.gy(pos.x, pos.z), pos.z);
-    this.scene.add(mesh);
-    this.effects.push({ mesh, t: 0, life: 0.3, update: (e, k) => { mat.opacity = k < 0.3 ? 1 : 1 - k; mesh.scale.set(1 - k * 0.6, 1, 1 - k * 0.6); } });
-    this._ring(pos, 0.3, 2.6, 0.35, color);
+    this.qfx.lightning(pos, color); // 分岔閃電（three.quarks）
     if (shake) this.shake = Math.max(this.shake, 0.15);
   }
 
@@ -1393,8 +1384,8 @@ export class BattleScene {
   _starBolt(a, t, dmg, color, radius) {
     const from = { x: a.group.position.x + Math.sin(a.facing) * 0.8, z: a.group.position.z + Math.cos(a.facing) * 0.8 };
     const to = { x: t.x, z: t.z };
-    this.qfx.streak(from, to, color, 0.18, 0.45);
-    this._later(0.06, () => {
+    this.qfx.comet(from, to, color, 0.12, { width: 0.4, length: 10, head: 0.9 }); // 彗星拖尾
+    this._later(0.12, () => {
       this.qfx.flash(to, 1.8, color, 0.25, 0.9);
       this.qfx.sparks(to, 4, color, 5, 0.3);
       this._damageArea(a, to, radius, dmg);
@@ -1455,6 +1446,7 @@ export class BattleScene {
     this._wall(pos, 0.5, 7, 1.6, 0xffd166, 0.6);
     this._ring(pos, 0.5, 8, 0.7, 0xffe08a);
     this._sparks(pos, 24, 0xffe08a, 9, 0.8, { up: 1.4 });
+    this.qfx.vortex(pos, 2.2, 0xffd166, 1.2, { n: 50, rise: 6, spin: 8, follow: a });
   }
 
   _coin(pos) {
@@ -1799,7 +1791,7 @@ export class BattleScene {
       this.feverAuraT = (this.feverAuraT || 0) - dt;
       if (this.feverAuraT <= 0) { // 狂熱中身上持續冒金光
         this.feverAuraT = 0.12;
-        this._sparks(this.player.group.position, 2, 0xffe08a, 3, 0.6, { y: 0.4, up: 1.6 });
+        this.qfx.feverAura(this.player.group.position);
       }
     } else if (this.comboTimer <= 0) {
       this.fever = Math.max(0, this.fever - dt * 0.08); // 停手太久會慢慢流失
@@ -1956,7 +1948,7 @@ export class BattleScene {
             const tail = { x: pos.x - Math.sin(a.facing) * 3.5, z: pos.z - Math.cos(a.facing) * 3.5 };
             this.qfx.dragonTrail(tail, 1.4);
             a.trailT = 0.06;
-          } else if (a.mount.def.model === 'horse') this._particle(back, c);
+          } else if (a.mount.def.model === 'horse') this.qfx.dust(back, 0xb89a6a, 1);
           else this._sparks(back, 2, c, 1.5, 0.6, { y: 0.2, up: 0.8 });
         }
       }

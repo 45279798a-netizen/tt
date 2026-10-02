@@ -39,7 +39,8 @@ export const MOUNTS = {
     color: '#2a4a9a', accent: '#8ff3ff',
     desc: '在雲海裡悠游的巨鯨，身後拖著一道極光。抵達霜雪遺跡後可以喚醒',
     bonus: { expPct: [10, 1], goldPct: [6, 0.8] },
-    cost: { gold: 1_200_000, essence: 200, mats: { m2a: 300, m2b: 25, wf: 60 } },
+    // 金幣原本 120 萬，比同一區的雪狼（1600 萬）便宜十幾倍，加成卻更好 → 調到 1200 萬（升級費用也跟著正常）
+    cost: { gold: 12_000_000, essence: 200, mats: { m2a: 300, m2b: 25, wf: 60 } },
   },
   phoenix: {
     id: 'phoenix', name: '炎煌鳳凰', icon: '🔥', model: 'phoenix', tier: 3, reqMap: 3, speed: 1.85,

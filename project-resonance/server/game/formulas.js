@@ -34,6 +34,11 @@ export const PARTY_BONUS = 0.1;
 export const PARTY_MAX = 3;
 export const partyMul = (others) => 1 + Math.min(Math.max(0, others), PARTY_MAX) * PARTY_BONUS;
 
+// 回低階地圖刷「固定獎勵」的內容（魔物潮、首領突襲）：每低一區獎勵 ×0.3
+// 不然後期角色回第 1 區秒殺首領、一次清光魔物潮，精華 / 星輝羽 / 寵物蛋會無限湧出
+export const LOW_MAP_PENALTY = 0.3;
+export const farmMul = (p, mapId) => LOW_MAP_PENALTY ** Math.max(0, (p.maxMap ?? 0) - mapId);
+
 export function expToNext(level) {
   return Math.floor(20 * 1.15 ** level);
 }

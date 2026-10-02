@@ -44,8 +44,10 @@ export function ratePerHour(p) {
   const [ma, mb] = SETS[tier].mats;
   for (const b of p.manor.plots) {
     if (!b) continue;
-    if (b.id === 'goldmine') out.gold += scale(p) * 250 * b.lv * mul;
-    if (b.id === 'essence') out.essence += 1.5 * b.lv * mul;
+    // 金礦：原本 250 / 級，12 座 Lv.10 的離線產量是「實際狩獵」的 3 倍以上 → 下修到 50（12 座滿級 ≈ 狩獵的 2/3，一般配置約 1/4）
+    if (b.id === 'goldmine') out.gold += scale(p) * 50 * b.lv * mul;
+    // 精華泉：強化消耗的精華會隨裝備階級 ×(階級 + 1) 成長，產量也跟著地圖成長，後期才不會變成擺設
+    if (b.id === 'essence') out.essence += 1.2 * b.lv * (1 + tier * 0.3) * mul;
     if (b.id === 'warehouse') { out.mats[ma] = (out.mats[ma] || 0) + 5 * b.lv * mul; out.mats[mb] = (out.mats[mb] || 0) + 0.25 * b.lv * mul; }
   }
   return out;

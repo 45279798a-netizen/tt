@@ -5,19 +5,22 @@
 //  - 時間內打倒：依傷害比例發大量獎勵；時間到沒打倒就失敗
 // ─────────────────────────────────────────────
 import crypto from 'node:crypto';
-import { MAPS, AOE_TARGETS, MAX_GAP_SEC, calcStats } from './formulas.js';
-import { getPlayer, giveReward, partnerMul, partyMates } from './state.js';
+import { MAPS, AOE_TARGETS, MAX_GAP_SEC, calcStats, farmMul } from './formulas.js';
+import { getPlayer, giveReward, partnerMul, partyMates, cdText } from './state.js';
 import { GameError } from './state.js';
 
 export const RAID_SEC = Number(process.env.RAID_SEC ?? 240);
 const RAID_HP_MUL = Number(process.env.RAID_HP_MUL ?? 2500); // 該地圖小怪血量 × 2500
+// 冷卻：從開打算起 15 分鐘（原本沒有冷卻：後期角色回第 1 區秒殺首領，精華 / 星輝羽 / 寵物蛋可以無限刷）
+export const RAID_CD_SEC = Number(process.env.RAID_CD_SEC ?? 900);
 const raids = new Map();
 
 export function startRaid(p) {
   if (p.inTown) throw new GameError('要在狩獵地圖才能發起首領突襲');
   if (p.raidId && raids.has(p.raidId)) throw new GameError('首領突襲正在進行中');
   const now = Date.now();
-  const mates = partyMates(p.id).map((id) => getPlayer(id)).filter((q) => q && !q.inTown && q.mapId === p.mapId && !(q.raidId && raids.has(q.raidId)));
+  if (now < (p.raidCd || 0)) throw new GameError(`首領突襲冷卻中，還要 ${cdText(p.raidCd - now)}`);
+  const mates = partyMates(p.id).map((id) => getPlayer(id)).filter((q) => q && !q.inTown && q.mapId === p.mapId && !(q.raidId && raids.has(q.raidId)) && now >= (q.raidCd || 0));
   const members = [p, ...mates];
   const maxHp = MAPS[p.mapId].monsterHp * RAID_HP_MUL * (1 + 0.6 * (members.length - 1));
   const r = {
@@ -25,7 +28,7 @@ export function startRaid(p) {
     hp: maxHp, maxHp, start: now, endsAt: now + RAID_SEC * 1000, members: members.map((q) => q.id), dmg: {},
   };
   raids.set(r.id, r);
-  for (const q of members) { q.raidId = r.id; q.lastRaidHit = now; }
+  for (const q of members) { q.raidId = r.id; q.lastRaidHit = now; q.raidCd = now + RAID_CD_SEC * 1000; }
   return { id: r.id, party: members.length };
 }
 
@@ -58,13 +61,15 @@ function finish(r) {
     const q = getPlayer(id);
     if (q?.raidId === r.id) q.raidId = null;
     const share = (r.dmg[id] || 0) / total; // 每位成員都有保底，傷害比例另外加成
+    const low = q ? farmMul(q, tier) : 1; // 在低於自己進度的地圖打：每低一區 ×0.3、沒有寵物蛋
     const reward = {
-      essence: Math.round((50 + 150 * share) * (1 + tier * 0.25)),
-      mats: { wf: Math.round((30 + 60 * share) * (1 + tier * 0.3)), wr: Math.round((3 + 8 * share) * (1 + tier * 0.2)) },
+      essence: Math.round((50 + 150 * share) * (1 + tier * 0.25) * low),
+      mats: { wf: Math.round((30 + 60 * share) * (1 + tier * 0.3) * low), wr: Math.round((3 + 8 * share) * (1 + tier * 0.2) * low) },
       gold: Math.floor(MAPS[tier].goldPerKill * 800 * (0.5 + share)),
+      lowMap: low < 1,
     };
-    reward.eggs = 1; // 每人一顆寵物蛋
-    giveReward(id, { mats: reward.mats, gold: reward.gold, eggs: 1 });
+    reward.eggs = low >= 1 ? 1 : 0; // 每人一顆寵物蛋（自己進度的地圖才有）
+    giveReward(id, { mats: reward.mats, gold: reward.gold, eggs: reward.eggs });
     if (q) q.essence += reward.essence;
     out.push({ to: id, msg: { t: 'raid_reward', name: r.name, share, ...reward } });
   });

@@ -9,6 +9,7 @@
 // 平衡原則（固定技能後三職業必須一樣強）：
 //   打怪：4 招平均每秒額外 ≈ 3 秒份單體傷害（大劍範圍大，略低）
 //   PvP ：4 招平均每秒 ≈ 2.4 秒份傷害（太刀暴擊率高 → 倍率略低；雙劍有鬼人化加攻速）
+//         星杖射程最遠（可以邊退邊打），總量壓在 ≈ 2.28
 // ─────────────────────────────────────────────
 
 export const SKILLS = {
@@ -33,8 +34,8 @@ export const SKILLS = {
   // ── 星杖：遠程、魔法、範圍（第四章起）──
   s_orb:    { cls: 'staff', name: '星彈連射', icon: '✨', cd: 5,  desc: '射出 5 顆追蹤星彈', pvp: { mult: 3.5, range: 12 } },
   s_meteor: { cls: 'staff', name: '隕星墜落', icon: '☄️', cd: 9,  desc: '前方降下 5 顆隕星', pvp: { mult: 5.5, range: 12 } },
-  s_beam:   { cls: 'staff', name: '星河光束', icon: '🌠', cd: 11, desc: '向前持續放出 1.2 秒星光束', pvp: { mult: 6.5, range: 16 } },
-  s_judge:  { cls: 'staff', name: '星界審判', icon: '🌌', cd: 20, desc: '巨大星陣 + 星雨 + 終焉崩落', pvp: { mult: 9, range: 14 } },
+  s_beam:   { cls: 'staff', name: '星河光束', icon: '🌠', cd: 11, desc: '向前持續放出 1.2 秒星光束', pvp: { mult: 6, range: 16 } },
+  s_judge:  { cls: 'staff', name: '星界審判', icon: '🌌', cd: 20, desc: '巨大星陣 + 星雨 + 終焉崩落', pvp: { mult: 8.5, range: 14 } },
 };
 
 /** 每個職業的固定技能（順序 = 技能盤由下往上的位置） */

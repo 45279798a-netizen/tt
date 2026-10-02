@@ -4,6 +4,10 @@
 //   ・專用程式貼圖：刀光弧、衝擊波環、魔法陣、地裂、煙霧、火花條、星芒、花瓣
 //   ・動態光源脈衝：固定 3 盞點光源輪流使用（不會新增燈 → 不會重新編譯 shader 卡頓）
 //   ・多層疊加：閃光 → 光源 → 衝擊波 → 火花 → 餘燼 → 煙 → 地面印記
+//   ・拖尾（RenderMode.Trail）：星彈、隕星是真正的彗星光帶，不再只是一串光點
+//   ・螺旋氣流（OrbitOverLife）：升級、旋風斬、鬼人化、狂熱的上升光旋
+//   ・打擊感：命中火花 / 暴擊星芒、怪物倒下的碎光與魂火、閃電、首領預警與倒下演出
+//   ・特效預算：小特效（命中、擊殺）每秒有上限，一次掃到一大群怪也不會掉幀；手機自動減量
 // 相同材質的粒子由 BatchedRenderer 合併成一次繪製；非迴圈系統 autoDestroy 播完自動清除
 // ─────────────────────────────────────────────
 import * as THREE from 'three';
@@ -11,7 +15,7 @@ import {
   BatchedRenderer, ParticleSystem, RenderMode,
   ConstantValue, IntervalValue, ConstantColor, ColorOverLife, Gradient, SizeOverLife, PiecewiseBezier, Bezier,
   ApplyForce, RotationOverLife, Noise, SpeedOverLife, OrbitOverLife, AxisAngleGenerator,
-  PointEmitter, SphereEmitter, CircleEmitter, HemisphereEmitter,
+  PointEmitter, SphereEmitter, CircleEmitter, HemisphereEmitter, ConeEmitter, WidthOverLength,
   Vector3 as QV3, Vector4 as QV4,
 } from 'three.quarks';
 
@@ -140,6 +144,33 @@ function makeTextures() {
       grd.addColorStop(0, W(1)); grd.addColorStop(0.35, W(0.55)); grd.addColorStop(1, W(0));
       g.fillStyle = grd; g.fillRect(0, 0, s, s);
     }),
+    // 拖尾：u = 尾 → 頭（越靠頭越亮），v = 寬度方向（中間白熱）
+    trail: tex(128, (g, s) => {
+      const v = g.createLinearGradient(0, 0, 0, s);
+      v.addColorStop(0, W(0)); v.addColorStop(0.3, W(0.35)); v.addColorStop(0.5, W(1)); v.addColorStop(0.7, W(0.35)); v.addColorStop(1, W(0));
+      g.fillStyle = v; g.fillRect(0, 0, s, s);
+      g.globalCompositeOperation = 'destination-in';
+      const u = g.createLinearGradient(0, 0, s, 0);
+      u.addColorStop(0, 'rgba(0,0,0,0)'); u.addColorStop(0.6, 'rgba(0,0,0,0.7)'); u.addColorStop(1, 'rgba(0,0,0,1)');
+      g.fillStyle = u; g.fillRect(0, 0, s, s);
+    }),
+    // 閃電：三種隨機分岔的鋸齒，輪流用
+    bolts: [0, 1, 2].map(() => tex(256, (g, s) => {
+      g.strokeStyle = '#fff'; g.lineCap = 'round'; g.lineJoin = 'round';
+      g.shadowColor = '#fff'; g.shadowBlur = 10;
+      const zig = (x, y, len, w, depth) => {
+        g.lineWidth = w; g.beginPath(); g.moveTo(x, y);
+        const steps = 9;
+        for (let i = 1; i <= steps; i++) {
+          x = Math.min(s * 0.9, Math.max(s * 0.1, x + rand(-s * 0.06, s * 0.06)));
+          y += len / steps;
+          g.lineTo(x, y);
+          if (depth > 0 && Math.random() < 0.22) { g.stroke(); zig(x, y, len * 0.35, w * 0.55, depth - 1); g.lineWidth = w; g.beginPath(); g.moveTo(x, y); }
+        }
+        g.stroke();
+      };
+      zig(s / 2, 0, s, s * 0.022, 2);
+    })),
     band: tex(128, (g, s) => {
       const grd = g.createLinearGradient(0, 0, s, 0);
       grd.addColorStop(0, W(0)); grd.addColorStop(0.42, W(0.5)); grd.addColorStop(0.5, W(1)); grd.addColorStop(0.58, W(0.5)); grd.addColorStop(1, W(0));
@@ -165,12 +196,14 @@ export class QuarksFx {
       glow: add(this.t.glow), spark: add(this.t.spark), flare: add(this.t.flare),
       ring: add(this.t.ring), rune: add(this.t.rune), crack: add(this.t.crack),
       slash: add(this.t.slash, THREE.DoubleSide), vfade: add(this.t.vfade, THREE.DoubleSide), band: add(this.t.band, THREE.DoubleSide),
+      trail: add(this.t.trail, THREE.DoubleSide),
       smoke: new THREE.MeshBasicMaterial({ map: this.t.smoke, transparent: true, depthWrite: false }),
       feather: new THREE.MeshBasicMaterial({ map: this.t.feather, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
       petal: new THREE.MeshBasicMaterial({ map: this.t.petal, transparent: true, depthWrite: false, side: THREE.DoubleSide }),
       rock: new THREE.MeshStandardMaterial({ color: WHITE, roughness: 0.95, metalness: 0, flatShading: true }),
       solid: add(null, THREE.DoubleSide),
     };
+    this.boltMats = this.t.bolts.map((t) => add(t, THREE.DoubleSide));
     this.geo = {
       spike: new THREE.ConeGeometry(0.35, 1.4, 5).translate(0, 0.7, 0),
       rock: new THREE.DodecahedronGeometry(0.16, 0),
@@ -184,6 +217,17 @@ export class QuarksFx {
       return { l, t: 1, life: 1, peak: 0 };
     });
     this.lightIdx = 0;
+    // 小特效預算（命中、擊殺）：每秒補充，用完就略過，避免一次 AoE 打到 30 隻怪時生出上百個粒子系統
+    this.lite = !!window.matchMedia?.('(pointer: coarse)').matches;
+    this.budgetMax = this.lite ? 8 : 16;
+    this.budgetRate = this.lite ? 18 : 40;
+    this.budget = this.budgetMax;
+  }
+
+  _spend(cost) {
+    if (this.budget < cost) return false;
+    this.budget -= cost;
+    return true;
   }
 
   _geo(key, make) {
@@ -209,6 +253,7 @@ export class QuarksFx {
   }
 
   update(dt) {
+    this.budget = Math.min(this.budgetMax, this.budget + dt * this.budgetRate);
     for (let i = this.tweens.length - 1; i >= 0; i--) {
       const tw = this.tweens[i];
       tw.t += dt;
@@ -512,31 +557,195 @@ export class QuarksFx {
     if (Math.random() < 0.35) this.flash(pos, 1.2, 0x7df9ff, 0.12, rand(0.4, 1.6));
   }
 
-  /** 流星：從天上斜斜砸下（拖著火光），落地爆炸，onHit 在落地瞬間呼叫 */
+  /** 流星：從天上斜斜砸下（彗星拖尾 + 火光），落地爆炸，onHit 在落地瞬間呼叫 */
   meteor(target, color, onHit) {
-    const from = { x: target.x - 5, y: this.gy(target.x, target.z) + 11, z: target.z - 3 };
     const gyT = this.gy(target.x, target.z);
+    const from = { x: target.x - 5, y: gyT + 11, z: target.z - 3 };
     const life = 0.42;
+    this.comet(from, { x: target.x, y: gyT + 0.3, z: target.z }, color, life, { width: 0.9, length: 22, head: 1.6 });
     const trail = this._play({
-      duration: life, emissionOverTime: new ConstantValue(90), startLife: new IntervalValue(0.25, 0.45), startSpeed: new ConstantValue(0.5),
-      startSize: new IntervalValue(0.5, 0.9), startColor: new ConstantColor(c4(color)), material: this.mat.glow, shape: new SphereEmitter({ radius: 0.25 }),
+      duration: life, emissionOverTime: new ConstantValue(this.lite ? 40 : 80), startLife: new IntervalValue(0.25, 0.45), startSpeed: new ConstantValue(0.5),
+      startSize: new IntervalValue(0.4, 0.8), startColor: new ConstantColor(c4(color)), material: this.mat.glow, shape: new SphereEmitter({ radius: 0.3 }),
     }, from, { behaviors: [new SizeOverLife(curve(1, 0.7, 0.3, 0)), new ColorOverLife(hot(color, 0.2))] });
-    const core = this._play({
-      duration: life, emissionOverTime: new ConstantValue(40), startLife: new ConstantValue(0.08), startSpeed: new ConstantValue(0),
-      startSize: new ConstantValue(1.3), startColor: new ConstantColor(c4(WHITE)), material: this.mat.flare, shape: new PointEmitter(),
-    }, from, {});
     this.tweens.push({ t: 0, life, fn: (k) => {
-      const e = k * k;
-      for (const ps of [trail, core]) ps.emitter.position.set(from.x + (target.x - from.x) * e, from.y + (gyT + 0.3 - from.y) * e, from.z + (target.z - from.z) * e);
+      trail.emitter.position.set(from.x + (target.x - from.x) * k, from.y + (gyT + 0.3 - from.y) * k, from.z + (target.z - from.z) * k);
       if (k >= 1) {
         this.flash(target, 3.2, color, 0.35, 0.5);
         this.shock(target, 3.2, color, 0.4);
         this.crack(target, 2.4, color, 0.9);
         this.sparks(target, 10, color, 8, 0.45, { y: 0.3, up: 2 });
         this.embers(target, 6, color, 1, 1);
+        this.smoke(target, 2, 0x8a7f9a, 1.6, 0.7, 0.6);
         onHit?.();
       }
     } });
+  }
+
+  // ═══ 新增：拖尾 / 打擊感 / 演出 ══════════════════
+
+  /**
+   * 彗星：一顆發光彈頭從 from 直線飛到 to，身後拖著 RenderMode.Trail 光帶
+   * from / to 可以帶 y（絕對高度）；沒帶就用地面高度 + y0 / y1
+   */
+  comet(from, to, color, life = 0.2, { width = 0.45, length = 14, head = 1, y0 = 0.9, y1 = 0.9 } = {}) {
+    const fy = from.y ?? this.gy(from.x, from.z) + y0;
+    const ty = to.y ?? this.gy(to.x, to.z) + y1;
+    const dx = to.x - from.x, dy = ty - fy, dz = to.z - from.z;
+    const len = Math.hypot(dx, dy, dz);
+    if (len < 0.05) return;
+    const at = { x: from.x, y: fy, z: from.z };
+    const aim = { rotY: Math.atan2(dx, dz), rotX: -Math.asin(dy / len) };
+    const shot = () => ({ startLife: new ConstantValue(life), startSpeed: new ConstantValue(len / life), shape: new ConeEmitter({ radius: 0.001, angle: 0 }), emissionBursts: burst(1) });
+    this._play({
+      ...shot(), startSize: new ConstantValue(width), startColor: new ConstantColor(c4(color)), material: this.mat.trail,
+      renderMode: RenderMode.Trail, rendererEmitterSettings: { startLength: new ConstantValue(length), followLocalOrigin: false },
+    }, at, { ...aim, behaviors: [new WidthOverLength(curve(1, 0.85, 0.45, 0)), new ColorOverLife(hot(color, 0.7))] });
+    this._play({
+      ...shot(), startSize: new ConstantValue(head), startColor: new ConstantColor(c4(color)), material: this.mat.flare,
+      startRotation: new IntervalValue(0, Math.PI),
+    }, at, { ...aim, behaviors: [new RotationOverLife(new ConstantValue(8)), new ColorOverLife(hot(color, 0.8))] });
+  }
+
+  /** 命中：一般 = 小爆光 + 幾道火花；暴擊 = 旋轉星芒 + 金色火花 + 小衝擊環（有預算上限） */
+  hit(pos, color, crit = false) {
+    if (!this._spend(crit ? 1.5 : 1)) return;
+    if (crit) {
+      this._play({
+        startLife: new ConstantValue(0.26), startSpeed: new ConstantValue(0), startSize: new ConstantValue(2.2),
+        startColor: new ConstantColor(c4(0xffd166)), material: this.mat.flare, startRotation: new IntervalValue(0, Math.PI),
+        shape: new PointEmitter(), emissionBursts: burst(1),
+      }, pos, { y: 1.1, behaviors: [new SizeOverLife(curve(0.2, 1.4, 1, 0.3)), new RotationOverLife(new ConstantValue(4)), new ColorOverLife(hot(0xffd166, 0.1))] });
+      this.sparks(pos, this.lite ? 4 : 7, 0xffd166, 7, 0.35, { y: 1 });
+      this.shock(pos, 1.4, 0xffe08a, 0.22, 0.5);
+      return;
+    }
+    this._play({
+      startLife: new ConstantValue(0.14), startSpeed: new ConstantValue(0), startSize: new ConstantValue(1.1),
+      startColor: new ConstantColor(c4(color)), material: this.mat.glow, shape: new PointEmitter(), emissionBursts: burst(1),
+    }, pos, { y: 1, behaviors: [new SizeOverLife(curve(0.4, 1, 1, 0.6)), new ColorOverLife(hot(color, 0.1))] });
+    this.sparks(pos, 3, color, 5, 0.25, { y: 1 });
+  }
+
+  /** 怪物倒下：彩色碎光往外噴再落地 + 魂火往上飄 + 一小團煙；菁英多一圈金光與光柱 */
+  death(pos, color, elite = false) {
+    if (!elite && !this._spend(2)) return false;
+    this._play({
+      startLife: new IntervalValue(0.35, 0.65), startSpeed: new IntervalValue(3, 7.5), startSize: new IntervalValue(0.16, 0.34),
+      startColor: new ConstantColor(c4(color)), material: this.mat.glow, shape: new HemisphereEmitter({ radius: 0.4 }),
+      emissionBursts: burst(elite ? 22 : this.lite ? 6 : 10),
+    }, pos, { y: 0.5, rotX: -Math.PI / 2, behaviors: [new ApplyForce(DOWN, new ConstantValue(14)), new SizeOverLife(curve(1, 1, 0.6, 0)), new ColorOverLife(hot(color, 0.4))] });
+    this._play({
+      startLife: new IntervalValue(0.7, 1.15), startSpeed: new IntervalValue(0.2, 0.8), startSize: new IntervalValue(0.3, 0.6),
+      startColor: new ConstantColor(c4(0xe6f3ff)), material: this.mat.glow, shape: new SphereEmitter({ radius: 0.35 }),
+      emissionBursts: burst(elite ? 7 : this.lite ? 2 : 3),
+    }, pos, { y: 0.8, behaviors: [new ApplyForce(UP, new ConstantValue(3)), new Noise(new ConstantValue(0.6), new ConstantValue(1.2)), new SizeOverLife(curve(0.5, 1, 0.7, 0)), new ColorOverLife(inout(0xdff0ff, 0.2))] });
+    this.smoke(pos, elite ? 5 : 2, 0xd8d0c8, elite ? 2 : 1.2, 0.6, 0.4);
+    if (elite) {
+      this.flash(pos, 3.5, 0xffd166, 0.4, 1);
+      this.shock(pos, 4.5, 0xffd166, 0.5);
+      this.beam(pos, 0.7, 7, 0xffd166, 0.5);
+      this.sparks(pos, 18, 0xffe08a, 9, 0.6, { up: 1.5 });
+    }
+    return true;
+  }
+
+  /** 閃電：從天劈下的分岔電光（VerticalBillBoard 閃爍兩下）+ 落點爆光、火花、衝擊環 */
+  lightning(pos, color = 0xbfe6ff, height = 10) {
+    const mat = this.boltMats[Math.floor(Math.random() * this.boltMats.length)];
+    const flicker = (c) => new Gradient([[c3(WHITE), 0], [c3(c), 0.4], [c3(c), 1]], [[1, 0], [0.25, 0.25], [1, 0.4], [0.6, 0.6], [0, 1]]);
+    for (const [c, size, l] of [[color, height, 0.3], [WHITE, height * 0.96, 0.2]]) {
+      this._play({
+        startLife: new ConstantValue(l), startSpeed: new ConstantValue(0), startSize: new ConstantValue(size),
+        startColor: new ConstantColor(c4(c)), material: mat, renderMode: RenderMode.VerticalBillBoard,
+        shape: new PointEmitter(), emissionBursts: burst(1),
+      }, pos, { y: height / 2, behaviors: [new ColorOverLife(flicker(c))] });
+    }
+    this.flash(pos, 2.6, color, 0.25, 0.4);
+    this.shock(pos, 2.8, color, 0.35);
+    this.sparks(pos, 8, color, 7, 0.35, { y: 0.2, up: 2 });
+    this.crack(pos, 1.8, color, 0.6);
+  }
+
+  /** 螺旋氣流：光點繞著中心旋轉上升（OrbitOverLife），follow = 跟著角色走 */
+  vortex(pos, radius, color, life = 1, { n = 40, rise = 5, spin = 7, follow = null, size = 0.3 } = {}) {
+    const dur = life * 0.6;
+    const ps = this._play({
+      duration: dur, emissionOverTime: new ConstantValue((this.lite ? n * 0.5 : n) / dur),
+      startLife: new IntervalValue(life * 0.4, life * 0.6), startSpeed: new ConstantValue(-radius * 0.4),
+      startSize: new IntervalValue(size * 0.6, size), startColor: new ConstantColor(c4(color)), material: this.mat.glow,
+      shape: new CircleEmitter({ radius, thickness: 0.3 }),
+    }, follow ? follow.group.position : pos, {
+      y: 0.2, local: true, rotX: -Math.PI / 2,
+      behaviors: [
+        new OrbitOverLife(new ConstantValue(spin), new QV3(0, 0, 1)),
+        new ApplyForce(new QV3(0, 0, 1), new ConstantValue(rise * 2)),
+        new SizeOverLife(curve(0.4, 1, 0.8, 0)), new ColorOverLife(hot(color, 0.5)),
+      ],
+    });
+    if (follow) this.tweens.push({ t: 0, life, fn: () => { const p = follow.group.position; ps.emitter.position.set(p.x, p.y + 0.2, p.z); } });
+  }
+
+  /** 首領砸地預警：越來越大的紅色魔法陣 + 外圈往內吸的火點（life 秒後砸下） */
+  telegraph(pos, radius, life, color = 0xff2a2a) {
+    this._play({
+      startLife: new ConstantValue(life), startSpeed: new ConstantValue(0), startSize: new ConstantValue(radius * 2),
+      startColor: new ConstantColor(c4(color)), material: this.mat.rune, renderMode: RenderMode.HorizontalBillBoard,
+      startRotation: new IntervalValue(0, Math.PI), shape: new PointEmitter(), emissionBursts: burst(1),
+    }, pos, { y: 0.11, behaviors: [new SizeOverLife(curve(0.15, 0.8, 1, 1)), new ColorOverLife(new Gradient([[c3(color), 0], [c3(WHITE), 1]], [[0, 0], [0.9, 0.3], [1, 1]])), new RotationOverLife(new ConstantValue(2.5))] });
+    this._play({
+      duration: life * 0.8, emissionOverTime: new ConstantValue(this.lite ? 14 : 30), startLife: new ConstantValue(0.45),
+      startSpeed: new ConstantValue(-radius / 0.45), startSize: new IntervalValue(0.15, 0.3), startColor: new ConstantColor(c4(color)),
+      material: this.mat.spark, renderMode: RenderMode.StretchedBillBoard, speedFactor: 0.05,
+      shape: new CircleEmitter({ radius, thickness: 0 }),
+    }, pos, { y: 0.25, rotX: -Math.PI / 2, behaviors: [new ColorOverLife(hot(color, 0.5))] });
+  }
+
+  /** 首領倒下：雙層魔法陣、光柱、魂火漩渦、衝擊波、灰燼 */
+  bossDeath(pos, color = 0xff3b5c) {
+    this.rune(pos, 7, color, 2.4, 1.2);
+    this.rune(pos, 4, WHITE, 2.4, -2);
+    this.beam(pos, 2.2, 18, color, 1.6);
+    this.vortex(pos, 4, color, 2.4, { n: 70, rise: 6, spin: 4, size: 0.5 });
+    this.flash(pos, 10, color, 0.9, 2);
+    this.light(pos, color, 80, 1.4, 30, 3);
+    this.shock(pos, 14, color, 0.8);
+    this.shock(pos, 9, WHITE, 0.5);
+    this.wall(pos, 0.5, 11, 2.6, color, 0.8);
+    this.sparks(pos, 36, 0xff8fa3, 12, 1, { up: 1.5 });
+    this.embers(pos, 40, color, 4, 2.4);
+    this.smoke(pos, 10, 0x4a3040, 4, 1.8, 3);
+  }
+
+  /** 升級：金色光旋從腳下捲上來 + 光柱 + 魔法陣 + 星芒 */
+  levelUp(actor) {
+    const pos = actor.group.position;
+    this.vortex(pos, 1.6, 0xffd166, 1.4, { n: 60, rise: 6, spin: 8, follow: actor, size: 0.35 });
+    this.rune(pos, 3.2, 0xf5c04a, 1.4, 2.5);
+    this.beam(pos, 1.1, 12, 0xf5c04a, 0.9);
+    this.flash(pos, 4, 0xffe08a, 0.5, 1.4);
+    this.sparks(pos, 22, 0xffe08a, 8, 0.8, { up: 1.6 });
+    this.shock(pos, 6, 0xffd166, 0.7);
+  }
+
+  /** 狂熱中身上持續冒的金光（每 0.12 秒呼叫） */
+  feverAura(pos) {
+    this.sparks(pos, 2, 0xffe08a, 3, 0.6, { y: 0.4, up: 1.6 });
+    if (Math.random() < 0.4) {
+      this._play({
+        startLife: new IntervalValue(0.4, 0.7), startSpeed: new IntervalValue(0.5, 1.5), startSize: new IntervalValue(0.3, 0.55),
+        startColor: new ConstantColor(c4(0xffd166)), material: this.mat.flare, startRotation: new IntervalValue(0, Math.PI),
+        shape: new CircleEmitter({ radius: 0.8 }), emissionBursts: burst(1),
+      }, pos, { y: 0.3, rotX: -Math.PI / 2, behaviors: [new ApplyForce(UP, new ConstantValue(3)), new SizeOverLife(curve(0, 1.2, 0.8, 0)), new RotationOverLife(new ConstantValue(3))] });
+    }
+  }
+
+  /** 塵土：跑步、上下坐騎時腳下揚起的一小團 */
+  dust(pos, color = 0xb89a6a, n = 2) {
+    this._play({
+      startLife: new IntervalValue(0.4, 0.7), startSpeed: new IntervalValue(0.5, 1.6), startSize: new IntervalValue(0.5, 1),
+      startColor: new ConstantColor(c4(color, 0.7)), startRotation: new IntervalValue(0, Math.PI * 2), material: this.mat.smoke,
+      shape: new HemisphereEmitter({ radius: 0.3 }), emissionBursts: burst(n),
+    }, pos, { y: 0.15, rotX: -Math.PI / 2, behaviors: [new ApplyForce(DOWN, new ConstantValue(2)), new SizeOverLife(curve(0.6, 1, 1.3, 1.5)), new ColorOverLife(inout(color, 0.1)), new RotationOverLife(new IntervalValue(-1, 1))] });
   }
 
   /** 羽毛：慢慢飄落、翻轉、被風吹（聖羽之翼），旁邊帶一點閃光 */
@@ -593,7 +802,8 @@ export class QuarksFx {
     this.batch.dispose?.();
     for (const L of this.lights) this.scene.remove(L.l);
     for (const m of Object.values(this.mat)) m.dispose();
-    for (const t of Object.values(this.t)) t.dispose();
+    for (const m of this.boltMats) m.dispose();
+    for (const t of Object.values(this.t)) (Array.isArray(t) ? t : [t]).forEach((x) => x.dispose());
     for (const g of Object.values(this.geo)) g.dispose();
     for (const g of this.geoCache.values()) g.dispose();
   }

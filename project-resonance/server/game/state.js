@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   MAPS, MAX_GAP_SEC, KILL_SLACK, ELITE_VALUE, SKILL_DPS_BONUS, MAX_KILLS_PER_SEC,
-  calcStats, calcCP, calcRates, expToNext, equippedInsts, partyMul,
+  calcStats, calcCP, calcRates, expToNext, equippedInsts, partyMul, farmMul,
 } from './formulas.js';
 import { MOUNTS, MOUNT_MAX_LV, mountUpgradeCost } from './mounts.js';
 import { WINGS, WING_MAX_LV, wingUpgradeCost } from './wings.js';
@@ -675,16 +675,19 @@ export function synth(p, id, times = 1) {
 // 在目前的狩獵地圖開始：怪會一波波從四面八方湧來、越來越多越硬
 // 擊殺照常由 settle 驗證結算；結束時依「驗證過的擊殺數」額外發獎勵
 export const TRIAL_SEC = Number(process.env.TRIAL_SEC ?? 180); // 測試可用環境變數縮短
+// 冷卻：從開始算起 10 分鐘才能再開（原本沒有冷卻，可以一場接一場刷星輝羽 / 寵物蛋）
+export const TRIAL_CD_SEC = Number(process.env.TRIAL_CD_SEC ?? 600);
+export const cdText = (ms) => { const s = Math.ceil(ms / 1000); return s >= 60 ? `${Math.floor(s / 60)} 分 ${s % 60} 秒` : `${s} 秒`; };
 export function startTrial(p) {
   if (p.inTown) throw new GameError('要在狩獵地圖才能開始魔物潮');
   if (p.trial && Date.now() < p.trial.endsAt + 5000) throw new GameError('魔物潮正在進行中');
   const now = Date.now();
+  if (now < (p.trialCd || 0)) throw new GameError(`魔物潮冷卻中，還要 ${cdText(p.trialCd - now)}`);
   const t = { mapId: p.mapId, start: now, endsAt: now + TRIAL_SEC * 1000, kills: 0, party: 1 };
   // 組隊：同一張地圖、正在線上、沒在挑戰中的朋友一起進入（各自結算，共用倒數）
-  const mates = partyMembers(p.id).map((id) => players[id]).filter((q) => q && !q.inTown && q.mapId === p.mapId && !(q.trial && now < q.trial.endsAt));
+  const mates = partyMembers(p.id).map((id) => players[id]).filter((q) => q && !q.inTown && q.mapId === p.mapId && !(q.trial && now < q.trial.endsAt) && now >= (q.trialCd || 0));
   t.party = mates.length + 1;
-  p.trial = { ...t };
-  for (const q of mates) q.trial = { ...t };
+  for (const q of [p, ...mates]) { q.trial = { ...t }; q.trialCd = now + TRIAL_CD_SEC * 1000; }
   scheduleSave();
   return { endsAt: t.endsAt, sec: TRIAL_SEC, party: t.party };
 }
@@ -697,14 +700,19 @@ export function endTrial(p) {
   const k = Math.floor(t.kills);
   const tier = t.mapId;
   const partyMul = 1 + 0.1 * Math.min(3, (t.party || 1) - 1); // 組隊額外 +10% / 人
+  // 獎勵平衡：一場約 600~1200 隻。原本 k/8 精華、k/160 星輝羽（一場 = 世界王好幾隻的量）→ 下修並跟著地圖階級成長
+  // 在比自己最遠地圖低的地方開：每低一區 ×0.3（farmMul），也拿不到寵物蛋
+  const low = farmMul(p, tier);
+  const mul = partyMul * low;
   const reward = {
     party: t.party || 1,
     kills: k,
-    essence: Math.floor((k / 8) * partyMul),
-    mats: { wf: Math.floor((k / 30) * partyMul), wr: Math.floor((k / 160) * partyMul) },
+    essence: Math.floor((k / 14) * (1 + tier * 0.25) * mul),
+    mats: { wf: Math.floor((k / 45) * mul), wr: Math.floor((k / 450) * (1 + tier * 0.1) * mul) },
     gold: Math.floor(k * MAPS[tier].goldPerKill * 3 * partyMul),
+    lowMap: low < 1,
   };
-  reward.eggs = k >= 150 ? 1 : 0;
+  reward.eggs = k >= 150 && low >= 1 ? 1 : 0;
   p.eggs += reward.eggs;
   const best = k > p.trialBest;
   if (best) p.trialBest = k;
@@ -886,7 +894,7 @@ export function snapshot(p) {
     wing: p.wing,
     partners: p.partners,
     partnerOut: p.partnerOut,
-    trial: p.trial, trialBest: p.trialBest,
+    trial: p.trial, trialBest: p.trialBest, trialCd: p.trialCd || 0, raidCd: p.raidCd || 0,
     pets: p.pets, pet: p.pet, eggs: p.eggs,
     eggPrice: eggPrice(MAPS[Math.min(p.maxMap, MAPS.length - 1)].goldPerKill),
     party: { others: partyOf(p), mul: partyMul(partyOf(p)) },

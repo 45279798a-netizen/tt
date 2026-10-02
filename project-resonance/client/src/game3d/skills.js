@@ -5,7 +5,11 @@
 // 傷害倍率（b × N）是平衡過的，改特效時不要動到：
 //   大劍 旋風斬 5.6 / 震地 6 / 裂地 6 / 天崩 12
 //   太刀 氣刃 4.2 / 見切 5 / 居合 8 / 櫻花 線 2×6 + 範圍 9
-//   雙劍 鬼人化 攻速×2 / 影分身 1.6×4 / 迴旋刃 12 / 亂舞 16
+//   雙劍 鬼人化 攻速×2 / 影分身 3×4 / 迴旋刃 12 / 亂舞 16
+//   星杖 星彈 3.6×5 / 隕星 3.2×5 / 光束 1.5×6 / 審判 星雨 2×10 + 崩落 10
+// 平衡調整（每秒對「一隻怪」的額外傷害，單位 = 秒份）：
+//   大劍 ≈ 2.97、太刀 ≈ 2.95、雙劍 ≈ 3.0（原本影分身每隻只吃 1.6，≈ 2.85）
+//   星杖 ≈ 2.65（原本 ≈ 2.27 明顯最弱；遠程比近戰安全，所以留一點差距）
 // 特效工具（_crescent 月牙、_wall 衝擊波、_glowFlash 光暈、_sparks 火花…）在 BattleScene.js
 // ─────────────────────────────────────────────
 import { triggerSwing } from './heroModel.js';
@@ -38,6 +42,7 @@ export function castSkillFx(S, a, id) {
       Q.wall(pos, 1, 5, 1.4, 0x7dd3fc, 0.45);
       Q.sparks(pos, 14, 0xbfe6ff, 9, 0.5);
       Q.smoke(pos, 6, 0xcfe8ff, 2.2, 0.9, 2.5);
+      Q.vortex(pos, 3.2, 0xbfe6ff, 2, { n: 60, rise: 3, spin: 10, follow: a }); // 颶風氣旋
       if (local) S.vib(20);
       break;
     }
@@ -148,6 +153,7 @@ export function castSkillFx(S, a, id) {
         triggerSwing(a.hero);
         S._lineSlash(a, p, ang, 15, 3.2, b * 8, 0xffffff, 0.4);
         Q.streak(p, end, 0x9fdcff, 0.6, 2.4);
+        Q.comet(p, end, 0xc7f0ff, 0.14, { width: 1.1, length: 12, head: 2.2 }); // 刀氣彗星
         Q.flash(p, 3, 0xffffff, 0.25, 1);
         Q.flash(end, 3.5, 0xffffff, 0.3, 0.9);
         Q.light(ahead(p, ang, 7), 0xc7f0ff, 45, 0.4, 18);
@@ -183,6 +189,7 @@ export function castSkillFx(S, a, id) {
       Q.shock(pos, 4.5, 0xff5c5c, 0.5);
       Q.sparks(pos, 20, 0xff5c5c, 7, 0.7, { y: 0.3, up: 1.6 });
       Q.embers(pos, 16, 0xff3b3b, 1.5, 1.6);
+      Q.vortex(pos, 1.8, 0xff3b3b, 1.4, { n: 50, rise: 7, spin: -9, follow: a }); // 鬼氣捲上身
       if (local) S.vib([30, 30, 30]);
       break;
     }
@@ -203,7 +210,7 @@ export function castSkillFx(S, a, id) {
         Q.crescent(t, ang + Math.PI / 2, 2.3, 0x7c3aed, 0.22, { arc: 1.6, sweep: -2, tilt: -0.8 });
         Q.flash(t, 2.2, 0xb98cff, 0.25, 0.9);
         Q.sparks(t, local ? 6 : 3, 0xd8b4fe, 6, 0.35);
-        S._damageArea(a, t, 2.5, b * 1.6);
+        S._damageArea(a, t, 2.5, b * 3);
       }));
       break;
     }
@@ -238,7 +245,7 @@ export function castSkillFx(S, a, id) {
       while (ts.length < 5) ts.push(ahead(pos, f + rand(-0.6, 0.6), rand(5, 9)));
       ts.forEach((t, i) => S._later(0.12 + i * 0.09, () => {
         triggerSwing(a.hero);
-        S._starBolt(a, t, b * 3, i % 2 ? 0xffffff : 0x9be7ff, 2.4);
+        S._starBolt(a, t, b * 3.6, i % 2 ? 0xffffff : 0x9be7ff, 2.4);
         Q.flash(ahead(a.group.position, a.facing, 0.8), 1.2, 0x9be7ff, 0.15, 1.4);
       }));
       if (local) S.vib(15);
@@ -252,7 +259,7 @@ export function castSkillFx(S, a, id) {
       for (let i = 0; i < 5; i++) S._later(0.15 + i * 0.12, () => {
         const at = { x: c.x + rand(-3, 3), z: c.z + rand(-3, 3) };
         Q.meteor(at, i % 2 ? 0xc98cff : 0x9be7ff, () => {
-          S._damageArea(a, at, 3, b * 2.4);
+          S._damageArea(a, at, 3, b * 3.2);
           if (local && i === 4) S.shake = Math.max(S.shake, 0.3);
         });
       });
@@ -266,7 +273,7 @@ export function castSkillFx(S, a, id) {
         const p = at(a.group.position), ang = a.facing;
         const end = ahead(p, ang, 16);
         triggerSwing(a.hero);
-        S._lineSlash(a, p, ang, 16, 3, b * 1.3, 0x9be7ff, 0.25);
+        S._lineSlash(a, p, ang, 16, 3, b * 1.5, 0x9be7ff, 0.25);
         Q.streak(ahead(p, ang, 0.6), end, 0xc9f2ff, 0.28, 1.6);
         Q.streak(ahead(p, ang, 0.6), end, 0xffffff, 0.22, 0.5);
         Q.flash(end, 2.6, 0x9be7ff, 0.25, 1);
@@ -283,11 +290,12 @@ export function castSkillFx(S, a, id) {
       Q.rune(c, 2.5, 0xffffff, 2.6, 4);
       Q.beam(c, 1.4, 16, 0x9be7ff, 2.2);
       Q.converge(c, 40, 0xc9f2ff, 6, 0.5, 1.2);
+      Q.vortex(c, 6, 0xc98cff, 1.8, { n: 70, rise: 4, spin: 3, size: 0.4 }); // 星雲漩渦
       triggerSwing(a.hero);
       for (let i = 0; i < 10; i++) S._later(0.3 + i * 0.12, () => {
         const ang = rand(0, Math.PI * 2), r = rand(2, 9);
         const at2 = { x: c.x + Math.cos(ang) * r, z: c.z + Math.sin(ang) * r };
-        Q.meteor(at2, [0x9be7ff, 0xc98cff, 0xffffff][i % 3], () => S._damageArea(a, at2, 3, b * 1.5));
+        Q.meteor(at2, [0x9be7ff, 0xc98cff, 0xffffff][i % 3], () => S._damageArea(a, at2, 3, b * 2));
       });
       S._later(1.8, () => {
         Q.flash(c, 15, 0xc9f2ff, 0.7, 1.2);

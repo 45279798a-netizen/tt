@@ -223,7 +223,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         else if (m.t === 'boss_spawn') setBossNews({ kind: 'spawn', ...m, at: Date.now() });
         else if (m.t === 'boss_flee') setBossNews({ kind: 'flee', ...m, at: Date.now() });
         else if (m.t === 'boss_dead') setBossNews({ kind: 'dead', ...m, at: Date.now() });
-        else if (m.t === 'raid_reward') pushEvent?.({ type: 'info', text: `🦇 首領突襲成功！傷害 ${Math.round(m.share * 100)}%：💠${m.essence}、羽晶×${m.mats.wf}、星輝羽×${m.mats.wr}、💰${fmt(m.gold)}、🥚寵物蛋×1` });
+        else if (m.t === 'raid_reward') pushEvent?.({ type: 'info', text: `🦇 首領突襲成功！傷害 ${Math.round(m.share * 100)}%：💠${m.essence}、羽晶×${m.mats.wf}、星輝羽×${m.mats.wr}、💰${fmt(m.gold)}${m.eggs ? '、🥚寵物蛋×1' : ''}${m.lowMap ? '（低階地圖，獎勵減少）' : ''}` });
         else if (m.t === 'raid_fail') pushEvent?.({ type: 'error', text: `🦇 首領突襲失敗……${m.name}還活著` });
         else if (m.t === 'boss_reward') pushEvent?.({ type: 'info', text: `👑 討伐成功！第 ${m.rank} 名（${Math.round(m.share * 100)}%）獲得 羽晶×${m.wf}、星輝羽×${m.wr}、💰${fmt(m.gold)}${m.eggs ? '、🥚寵物蛋×1' : ''}` });
         else if (m.t === 'duel_start') {
@@ -366,7 +366,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
       {!town && !duel && !player.raid && (
         <button onClick={() => setRaidConfirm(true)}
           className="pointer-events-auto fixed left-3 top-[134px] z-20 rounded-xl border border-rose-300/50 bg-rose-950/80 px-3 py-1.5 text-xs font-bold text-rose-100 backdrop-blur active:scale-95">
-          🦇 首領突襲
+          🦇 首領突襲{cdLabel(player.raidCd)}
         </button>
       )}
       {raidConfirm && (
@@ -374,6 +374,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
           <div className="text-lg font-bold text-rose-200">🦇 首領突襲：深淵吸血鬼公爵</div>
           <p className="mt-2 text-sm text-white/70">4 分鐘內打倒首領。同地圖在線的朋友會一起進入，共用血量。</p>
           <p className="mt-1 text-xs text-white/55">三個階段：砸地 → 星環彈幕（要閃環）→ 隕星雨（看紅圈）。被打中會擊退暈眩。打倒依傷害比例給大量精華、羽晶、星輝羽、金幣。</p>
+          <p className="mt-1 text-xs text-amber-200/80">冷卻 15 分鐘。在比自己最遠進度低的地圖開：每低一區獎勵 ×0.3、沒有寵物蛋。</p>
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setRaidConfirm(false)} className="rounded-lg border border-white/20 px-4 py-2 text-sm">取消</button>
             <button onClick={async () => { setRaidConfirm(false); await onRaidStart?.(); }} className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-bold">開戰</button>
@@ -383,7 +384,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
       {!town && !duel && !player.trial && (
         <button onClick={() => setTrialConfirm(true)}
           className="pointer-events-auto fixed left-3 top-[96px] z-20 rounded-xl border border-violet-300/50 bg-violet-950/80 px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur active:scale-95">
-          🌀 魔物潮
+          🌀 魔物潮{cdLabel(player.trialCd)}
         </button>
       )}
       {trialConfirm && (
@@ -392,6 +393,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
           <p className="mt-2 text-xs text-emerald-200">👥 同一張地圖的朋友會一起加入（每多 1 人獎勵 +10%）</p>
           <p className="mt-2 text-sm text-white/70">在這張地圖撐過 3 分鐘：怪會從四面八方一波波湧來，每 20 秒變得更多更硬（共 9 波）。</p>
           <p className="mt-1 text-xs text-white/50">結束時依擊殺數額外獎勵：💠精華、羽晶、星輝羽、金幣。最佳紀錄：{player.trialBest || 0} 隻</p>
+          <p className="mt-1 text-xs text-amber-200/80">冷卻 10 分鐘。在比自己最遠進度低的地圖開：每低一區獎勵 ×0.3、沒有寵物蛋。</p>
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setTrialConfirm(false)} className="rounded-lg border border-white/20 px-4 py-2 text-sm">取消</button>
             <button onClick={async () => { setTrialConfirm(false); await onTrialStart?.(); }} className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold">開始</button>
@@ -404,6 +406,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
             <div className="text-lg font-bold text-violet-200">🌀 魔物潮結束！</div>
             <div className="num mt-2 text-4xl font-black text-gold">{trialResult.kills} <span className="text-base text-white/60">隻</span></div>
             {trialResult.best && <div className="mt-1 text-sm font-bold text-emerald-300">🏆 新紀錄！</div>}
+            {trialResult.lowMap && <div className="mt-1 text-xs text-amber-200">低階地圖：獎勵減少</div>}
             {trialResult.party > 1 && <div className="mt-1 text-xs text-emerald-200">👥 {trialResult.party} 人組隊 · 獎勵 +{Math.min(3, trialResult.party - 1) * 10}%</div>}
             <div className="num mt-3 flex flex-wrap justify-center gap-2 text-sm">
               <span className="rounded bg-white/10 px-2 py-1">💠 {trialResult.essence}</span>
@@ -457,6 +460,12 @@ export default function BattlePage({ player, config, events, active, killsPerMin
       </div>
     </div>
   );
+}
+
+/** 冷卻剩餘時間（按鈕後面顯示「 · 4:59」，伺服器才是真正的判定） */
+function cdLabel(until) {
+  const s = Math.ceil(((until || 0) - Date.now()) / 1000);
+  return s > 0 ? ` · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '';
 }
 
 function LinkBadge({ link, count, onRetry }) {
