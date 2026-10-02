@@ -27,7 +27,7 @@ export default function BossPage({ player }) {
             <li key={r.name}
               className={`flex items-center gap-3 rounded-lg px-2 py-2 text-sm ${r.name === player.name ? 'bg-gold/10' : ''}`}>
               <span className={`num w-6 text-center font-bold ${i === 0 ? 'text-gold' : i < 3 ? 'text-white/80' : 'text-white/35'}`}>{i + 1}</span>
-              <span className="flex-1 truncate">{r.name}</span>
+              <span className="flex-1 truncate">{r.name}{r.bot && <span className="ml-1 rounded bg-sky-500/20 px-1 text-[9px] font-normal text-sky-200">AI</span>}</span>
               <span className="num text-xs text-white/40">Lv.{r.level}</span>
               <span className="num w-16 text-right text-[11px] text-sky-200/80">⚔ {r.pvp?.w ?? 0}勝{r.pvp?.l ?? 0}敗</span>
               <span className="num w-20 text-right font-semibold text-gold">{fmt(r.cp)}</span>

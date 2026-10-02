@@ -5,9 +5,9 @@ export default function SidePanel({ title, wide = false, onClose, children }) {
       <div className="absolute inset-0 bg-black/40" />
       <aside
         onClick={(e) => e.stopPropagation()}
-        className={`panel-in safe-r relative flex h-full ${wide ? 'w-[min(820px,94vw)]' : 'w-[min(560px,72vw)]'} flex-col border-l border-edge bg-ink/95 backdrop-blur`}
+        className={`panel-in safe-r relative flex h-full ${wide ? 'w-[min(820px,94vw)]' : 'w-[min(560px,72vw)]'} short:w-full flex-col border-l border-edge bg-ink/95 backdrop-blur`}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-edge px-4 py-2.5">
+        <header className="safe-x flex shrink-0 items-center justify-between border-b border-edge px-4 py-2.5 short:py-1">
           <h2 className="font-bold">{title}</h2>
           <button onClick={onClose} className="grid size-9 place-items-center rounded-lg bg-white/10 text-lg active:scale-90" aria-label="關閉">✕</button>
         </header>

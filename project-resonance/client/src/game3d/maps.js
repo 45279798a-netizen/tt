@@ -279,6 +279,132 @@ export const MAP_DEFS = {
     mob: { shape: 'spirit', color: '#5ee7ff' },
   },
 
+  // ── 第 7 區：沉沒王都（沉在海底的古王城：珊瑚、海草、深淵水池、氣泡） ─────
+  6: {
+    name: '沉沒王都',
+    R: 48,
+    sky: '#0a3a4a', fog: ['#0f4a5a', 24, 62],
+    hemi: ['#a8f0ff', '#0a2a36', 1.35], sun: ['#c8fbff', 1.4],
+    ground: { a: '#2f6a6a', b: '#377878', c: '#285c5e', path: '#8ab8b0', bank: '#2a4e52', edge: '#1e4448' },
+    edgeRise: 0.45,
+    spawn: { x: 0, z: 40 },
+    arena: { x: 0, z: 20, r: 11 },
+    hills: [{ x: -32, z: -30, r: 12, h: 2 }, { x: 34, z: -28, r: 11, h: 1.8 }, { x: -36, z: 28, r: 10, h: 1.4 }, { x: 36, z: 26, r: 10, h: 1.6 }],
+    paths: [{ pts: [[0, 56], [0, 20]], w: 4 }, { pts: [[0, 20], [0, -44]], w: 3.6 }, { pts: [[0, -8], [-30, -24]], w: 3 }, { pts: [[0, -8], [30, -24]], w: 3 }, { pts: [[-30, 10], [30, 10]], w: 3 }],
+    rivers: [],
+    lakes: [{ x: -22, z: -6, r: 7, kind: 'water' }, { x: 22, z: -6, r: 7, kind: 'water' }, { x: 0, z: 30, r: 4, kind: 'water' }],
+    bridges: [],
+    camps: [
+      { x: -28, z: -28, r: 9, n: 9 }, { x: 28, z: -28, r: 9, n: 9 },
+      { x: -26, z: 26, r: 8, n: 7 }, { x: 26, z: 26, r: 8, n: 7 },
+      { x: 0, z: -18, r: 7, n: 8 }, { x: -12, z: 10, r: 6, n: 6 }, { x: 14, z: 10, r: 6, n: 6 },
+      { x: 0, z: -44, r: 6, n: 5, elite: true },
+    ],
+    scatter: [
+      { type: 'coral', n: 160, band: [42, 70], collide: 0.8 },
+      { type: 'kelp', n: 60, band: [30, 70] },
+      { type: 'coral', n: 40, collide: 0.6 },
+      { type: 'kelp', n: 50 },
+      { type: 'rock', n: 18, collide: 0.9 },
+    ],
+    landmarks: [
+      { type: 'ruinGate', x: 0, z: -52, s: 1.4, collide: 0 },
+      { type: 'coralSpire', x: -38, z: 8, s: 1, collide: 3.4 },
+      { type: 'coralSpire', x: 38, z: -6, s: 1.2, collide: 4 },
+      { type: 'ruinWall', x: -30, z: -40, s: 1, collide: 0 },
+      { type: 'pillarRing', x: 0, z: 0, s: 1, collide: 0 },
+    ],
+    ambient: 'bubbles',
+    mob: { shape: 'spirit', color: '#3fd6c6' },
+  },
+
+  // ── 第 8 區：龍骨荒原（遠古巨龍倒下的焦土：熔岩裂谷、巨大龍骨、落灰） ─────
+  7: {
+    name: '龍骨荒原',
+    R: 48,
+    sky: '#3a1a14', fog: ['#4a241a', 26, 66],
+    hemi: ['#ffd0b0', '#2a1410', 1.3], sun: ['#ffc89a', 1.6],
+    ground: { a: '#5a3a2a', b: '#664330', c: '#4c3022', path: '#8a6a50', bank: '#3a2418', edge: '#2e1c14' },
+    edgeRise: 0.4,
+    spawn: { x: 0, z: 40 },
+    arena: { x: 0, z: 20, r: 11 },
+    hills: [{ x: -34, z: -28, r: 13, h: 2.6 }, { x: 34, z: -30, r: 12, h: 2.4 }, { x: -38, z: 30, r: 10, h: 1.8 }, { x: 36, z: 32, r: 10, h: 2 }],
+    paths: [{ pts: [[0, 56], [0, 20]], w: 4 }, { pts: [[0, 20], [4, -10], [0, -44]], w: 3.4 }, { pts: [[4, -10], [-30, -26]], w: 3 }],
+    rivers: [{ pts: [[-64, 2], [-32, -4], [-8, 4], [14, -2], [36, 6], [64, 0]], w: 5, kind: 'lava' }],
+    lakes: [],
+    bridges: [{ river: 0, at: 0.3, style: 'stone' }, { river: 0, at: 0.52, style: 'stone' }, { river: 0, at: 0.76, style: 'stone' }],
+    camps: [
+      { x: -28, z: -28, r: 9, n: 9 }, { x: 28, z: -28, r: 9, n: 9 },
+      { x: -26, z: 26, r: 8, n: 7 }, { x: 26, z: 26, r: 8, n: 7 },
+      { x: 12, z: -18, r: 7, n: 8 }, { x: -14, z: 18, r: 6, n: 6 },
+      { x: 0, z: -44, r: 6, n: 5, elite: true },
+    ],
+    scatter: [
+      { type: 'basalt', n: 110, band: [42, 70], collide: 1 },
+      { type: 'bone', n: 60, collide: 0.5 },
+      { type: 'deadTree', n: 20, collide: 0.5 },
+      { type: 'vent', n: 16 },
+      { type: 'ash', n: 80 },
+      { type: 'rock', n: 20, collide: 0.9 },
+    ],
+    landmarks: [
+      { type: 'ribcage', x: -30, z: 10, s: 1, rot: 0.5, collide: 0 },
+      { type: 'ribcage', x: 32, z: -12, s: 1.2, rot: -0.8, collide: 0 },
+      { type: 'skull', x: 0, z: -54, s: 1.3, collide: 3 },
+      { type: 'spire', x: 40, z: 24, s: 1, collide: 3 },
+    ],
+    ambient: 'ashfall',
+    mob: { shape: 'beetle', color: '#e0d2b4' },
+  },
+
+  // ── 緣起獵場（村莊南邊的共用狩獵場）─────────────────
+  // 怪物強度 = 每個人自己去過最遠的地圖，所以不同進度的玩家（含 AI 玩家）都能在這裡一起打
+  field: {
+    name: '緣起獵場',
+    R: 62,
+    sky: '#b8d8f0', fog: ['#e6dcc0', 44, 100],
+    hemi: ['#fff6e0', '#6a5a3a', 1.5], sun: ['#ffe2b0', 1.75],
+    ground: { a: '#7a9a3e', b: '#8aaa48', c: '#6a8a35', path: '#c4b088', bank: '#7a6a42', edge: '#4e6a2a' },
+    edgeRise: 0.3,
+    spawn: { x: 0, z: -50 },
+    arena: { x: 0, z: 34, r: 11 },
+    hills: [{ x: -40, z: -30, r: 12, h: 2 }, { x: 42, z: -26, r: 12, h: 1.8 }, { x: -44, z: 36, r: 12, h: 2.2 }, { x: 44, z: 40, r: 11, h: 1.6 }, { x: 0, z: 0, r: 9, h: 1 }],
+    paths: [
+      { pts: [[0, -70], [0, -40], [-6, -10], [0, 20], [0, 50]], w: 4.5 },
+      { pts: [[-6, -10], [-40, -6]], w: 3 }, { pts: [[-6, -10], [38, -14]], w: 3 },
+      { pts: [[0, 20], [-32, 38]], w: 3 }, { pts: [[0, 20], [34, 36]], w: 3 },
+    ],
+    rivers: [],
+    lakes: [{ x: 22, z: 8, r: 6, kind: 'water' }],
+    bridges: [],
+    camps: [
+      { x: -22, z: -34, r: 8, n: 8 }, { x: 22, z: -34, r: 8, n: 8 },
+      { x: -40, z: -8, r: 9, n: 9 }, { x: 40, z: -14, r: 9, n: 9 },
+      { x: -20, z: 12, r: 8, n: 8 }, { x: 36, z: 24, r: 8, n: 8 },
+      { x: -34, z: 40, r: 9, n: 9 }, { x: 10, z: 46, r: 8, n: 8 },
+      { x: 0, z: 22, r: 6, n: 5, elite: true },
+    ],
+    scatter: [
+      { type: 'tree', n: 170, band: [54, 82], collide: 1.1 },
+      { type: 'tree', n: 26, collide: 1 },
+      { type: 'bush', n: 70 },
+      { type: 'mushroom', n: 24, collide: 0.5 },
+      { type: 'rock', n: 30, collide: 0.9 },
+      { type: 'flower', n: 260 },
+      { type: 'grass', n: 380 },
+    ],
+    landmarks: [
+      { type: 'stoneArch', x: 0, z: -60, s: 1.2, collide: 0 },
+      { type: 'banner', x: -6, z: -54, s: 1, color: '#e6b422' }, { type: 'banner', x: 6, z: -54, s: 1, color: '#e6b422' },
+      { type: 'giantTree', x: -10, z: -10, s: 1, collide: 3 },
+      { type: 'mushroomRing', x: 30, z: -32, s: 1, collide: 0 },
+      { type: 'pillarRing', x: -44, z: 20, s: 1, collide: 0 },
+      { type: 'well', x: 8, z: -44, s: 1, collide: 1.3 },
+    ],
+    ambient: 'fireflies',
+    mob: { shape: 'slime', color: '#ffb347' },
+  },
+
   // ── 緣起村（和平區） ──────────────────────
   // ── 莊園（每個人自己的，peaceful）─────────────
   manor: {
@@ -379,6 +505,9 @@ export const MAP_DEFS = {
       { type: 'lamp', x: -24, z: 21, s: 1, collide: 0.3 }, { type: 'lamp', x: -38, z: 21, s: 1, collide: 0.3 },
       { type: 'well', x: -22, z: -3, s: 1, collide: 1.3 },
       { type: 'well', x: 26, z: 26, s: 1, collide: 1.3 },
+      // 南門：往緣起獵場（獵場守衛·阿岳站在旁邊）
+      { type: 'stoneArch', x: 0, z: 44, s: 1, collide: 0 },
+      { type: 'banner', x: -5, z: 42, s: 1, color: '#e6b422' }, { type: 'banner', x: 5, z: 42, s: 1, color: '#e6b422' },
       { type: 'fence', x: 0, z: 0, s: 1, collide: 0 },
     ],
     ambient: null,
@@ -412,4 +541,4 @@ function scaleMap(def, k) {
     landmarks: (def.landmarks || []).map(xz),
   };
 }
-for (const id of [0, 1, 2, 3, 4, 5]) MAP_DEFS[id] = scaleMap(MAP_DEFS[id], MAP_SCALE);
+for (const id of [0, 1, 2, 3, 4, 5, 6, 7]) MAP_DEFS[id] = scaleMap(MAP_DEFS[id], MAP_SCALE);

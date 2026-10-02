@@ -58,7 +58,7 @@ export default function FriendsPage({ player, onTravel, onDuel }) {
             <div key={f.id} className="flex items-center gap-2.5 rounded-xl border border-edge bg-panel p-2">
               <span className={`size-2.5 shrink-0 rounded-full ${f.online ? 'bg-emerald-400' : 'bg-white/20'}`} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-bold">{f.name}
+                <div className="truncate text-sm font-bold">{f.name}{f.bot && <span className="ml-1 rounded bg-sky-500/20 px-1 text-[9px] font-normal text-sky-200">AI</span>}
                   <span className="num ml-1.5 text-[10px] font-normal text-white/40">Lv.{f.level} · 戰力 {fmt(f.cp)} · {f.pvp.w}勝{f.pvp.l}敗</span>
                 </div>
                 <div className="text-[11px] text-white/50">{f.online ? '🟢 在線' : '離線'} · 📍{f.where}</div>

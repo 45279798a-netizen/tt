@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 手機橫拿（畫面矮）：short:xxx 只在高度 ≤ 480px 時生效 */
+@custom-variant short (@media (max-height: 480px));
+
 @theme {
   --color-ink: #0b0a14;
   --color-panel: #15131f;
@@ -134,6 +137,14 @@ input { user-select: text; -webkit-user-select: text; }
   transition: width .2s, height .2s; background: #000;
 }
 .minimap.big { width: min(300px, 70vh); height: min(300px, 70vh); }
+/* 手機：小地圖縮小、往上靠，讓出右下角給技能盤 */
+@media (max-height: 480px) {
+  .minimap { top: 58px; width: 86px; height: 86px; border-radius: 12px; }
+  .minimap.big { width: min(240px, 62vh); height: min(240px, 62vh); }
+  .combo-counter, .fever-bar { right: max(108px, calc(env(safe-area-inset-right) + 100px)); }
+  .combo-counter { top: 60px; } .combo-counter b { font-size: 26px; }
+  .fever-bar { top: 100px; }
+}
 
 /* ── 狂熱 ───────────────────────────────── */
 .fever-bar {

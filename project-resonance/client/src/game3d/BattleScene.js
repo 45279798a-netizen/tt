@@ -42,6 +42,9 @@ export const WEAPON_STYLE = {
   // 長槍：前方細長直線突刺（雷光）；長弓：射向最近敵人的穿透箭（風）
   spear: { name: '長槍', interval: 0.55, radius: 5.2, color: 0x7df9ff, basic: { name: '突刺', icon: '🔱', cd: 0.35 }, keep: 3.4 },
   bow: { name: '長弓', interval: 0.55, radius: 9.0, color: 0x8affc1, basic: { name: '三連射', icon: '🏹', cd: 0.35 }, ranged: true, keep: 6.5 },
+  // 鐮刀：大弧度暗影橫掃；拳套：貼身快拳（火）
+  scythe: { name: '鐮刀', interval: 0.7, radius: 4.8, color: 0xa66bff, basic: { name: '迴旋斬', icon: '🌙', cd: 0.4 }, keep: 3 },
+  fist: { name: '拳套', interval: 0.22, radius: 2.8, color: 0xff8a3a, basic: { name: '連環拳', icon: '👊', cd: 0.25 }, keep: 1.8 },
 };
 const REBIRTH_COLORS = ['#7ed957', '#6cc8ff', '#c98cff', '#ffd166', '#ff5a7a'].map((c) => new THREE.Color(c).getHex());
 const styleOf = (wtype) => WEAPON_STYLE[wtype] ?? WEAPON_STYLE.great;
@@ -322,6 +325,20 @@ export class BattleScene {
     this.player.skillMul = stats.skillMul || 1; // 轉職：技能傷害
     this.player.cdr = stats.cdr || 0;           // 轉職：技能冷卻縮短
     this.player.rebirth = stats.rebirth || 0;   // 轉職：腳下光環
+    this.talent = stats.talent || {};            // 天賦：狂熱秒數、首領傷害、暈眩減免、狂熱累積
+  }
+
+  _feverMax() { return FEVER_TIME + (this.talent?.feverTime || 0); }
+
+  /** 村莊訓練場的木人樁：當成不會動、不會死的「怪」，打了只跳傷害數字 */
+  _spawnDummies() {
+    for (const l of this.def.landmarks || []) {
+      if (l.type !== 'dummy') continue;
+      const g = new THREE.Group();
+      g.position.set(l.x, this.gy(l.x, l.z), l.z);
+      this.scene.add(g);
+      this.mobs.push({ dummy: true, group: g, alive: true, radius: 0.6, hp: Infinity, maxHp: Infinity, flash: 0, bar: { visible: false }, mat: { dispose() {} }, camp: -1 });
+    }
   }
 
   /** 轉職儀式（three.quarks） */
@@ -453,7 +470,7 @@ export class BattleScene {
   _raidHit(P, from, push, stun) {
     const ang = Math.atan2(P.x - from.x, P.z - from.z) || rand(0, 6.28);
     this.moveLocalTo(P.x + Math.sin(ang) * push, P.z + Math.cos(ang) * push);
-    this.stunT = Math.max(this.stunT, stun);
+    this.stunT = Math.max(this.stunT, stun * (1 - (this.talent?.stun || 0)));
     this._number(P, '暈眩！', 'hurt', 1.2);
     this.shake = Math.max(this.shake, 0.45);
     this._screenFlash('255,70,90');
@@ -592,7 +609,7 @@ export class BattleScene {
       if (dd < R + 0.4 && !this.duel) { // 被砸中：擊退 + 暈眩
         const ang = Math.atan2(pos.x - at.x, pos.z - at.z) || rand(0, 6.28);
         this.moveLocalTo(pos.x + Math.sin(ang) * 4.5, pos.z + Math.cos(ang) * 4.5);
-        this.stunT = 0.9;
+        this.stunT = 0.9 * (1 - (this.talent?.stun || 0));
         this._number(pos, '暈眩！', 'hurt', 1.2);
         this.shake = Math.max(this.shake, 0.5);
         this._screenFlash('255,80,60');
@@ -842,6 +859,7 @@ export class BattleScene {
 
     this._mobLook(def.mob);
     this._buildTown(!!def.town);
+    if (def.town && !map.manor) this._spawnDummies(); // 訓練場木人樁
     this._rebuildPartner(); // 換地圖：夥伴跟過來 / 回到酒館
     if (map.manor && this.manorView) this.setManor(this.manorView); // 莊園建築
     const sp = def.spawn;
@@ -871,7 +889,7 @@ export class BattleScene {
   /** 伺服器收益用：拿走累積的擊殺數 */
   takeKillReport() {
     const r = this.killReport;
-    this.killReport = { kills: 0, elites: 0, bossDmg: 0, raidDmg: 0 };
+    this.killReport = { kills: 0, elites: 0, bossDmg: 0, raidDmg: 0, skills: 0 };
     return r;
   }
 
@@ -895,12 +913,13 @@ export class BattleScene {
   }
 
   castSkill(id) {
-    if (!this.map || this.map.town || (this.cool[id] || 0) > 0) return false; // 村莊不能出招
+    if (!this.map || (this.cool[id] || 0) > 0) return false; // 村莊也能出招（只是沒有怪，木人樁會跳傷害數字）
     if (id !== 'basic' && !this.loadout.includes(id)) return false;
     if (this.duel && performance.now() < this.duel.startAt) return false;
     if (this.stunT > 0) return false;
     this.cool[id] = this._cdOf(id);
     this._skill(this.player, id);
+    if (id !== 'basic') this.killReport.skills = (this.killReport.skills || 0) + 1; // 每日任務「施放技能」
     this.onFx?.(id);
     if (this.duel) this.onHit?.(id);
     return true;
@@ -1146,6 +1165,18 @@ export class BattleScene {
       this._thrust(a, pos, a.facing, st.radius + 0.8, 1.8, this._dps(a) * st.interval, fever ? 0xffe08a : st.color);
       return;
     }
+    if (a.wtype === 'scythe') { // 鐮刀：大弧度橫掃 + 暗影煙
+      this._crescent(pos, a.facing, st.radius, fever ? 0xffe08a : st.color, 0.3, { arc: 4.2, sweep: 2.6, tilt: 0.2 });
+      this.qfx.smoke(pos, 2, 0x3a2a5a, 1.6, 0.6, st.radius * 0.6);
+      this._damageArea(a, pos, st.radius, this._dps(a) * st.interval);
+      return;
+    }
+    if (a.wtype === 'fist') { // 拳套：往前一拳，拳頭爆火花
+      const hit = { x: pos.x + Math.sin(a.facing) * 1.6, z: pos.z + Math.cos(a.facing) * 1.6 };
+      this.qfx.punch(hit, fever ? 0xffe08a : st.color);
+      this._damageArea(a, hit, st.radius, this._dps(a) * st.interval);
+      return;
+    }
     if (a.wtype === 'katana') {
       this._lineSlash(a, pos, a.facing, st.radius + 1.6, 2.2, this._dps(a) * st.interval, fever ? 0xffe08a : st.color, 0.18);
       this._crescent(pos, a.facing, st.radius * 0.8, fever ? 0xffe08a : st.color, 0.16, { arc: 1.6, sweep: 1.2, tilt: 0.3 });
@@ -1176,6 +1207,22 @@ export class BattleScene {
       const ts = this.targetsNear(a, 11, 3);
       if (!ts.length) ts.push({ x: pos.x + Math.sin(a.facing) * 8, z: pos.z + Math.cos(a.facing) * 8 });
       ts.forEach((t, i) => this._later(i * 0.05, () => this._arrowShot(a, Math.atan2(t.x - pos.x, t.z - pos.z), 11, b * 0.6, 0xc8ffe0)));
+      return;
+    }
+    if (a.wtype === 'scythe') { // 迴旋斬：一整圈
+      triggerSwing(a.hero);
+      this._crescent(pos, a.facing, 5.2, 0xc8a6ff, 0.32, { arc: 6.2, sweep: 3.2, tilt: 0 });
+      this.qfx.shock(pos, 5.2, 0xa66bff, 0.3);
+      this._damageArea(a, pos, 5.2, b * 0.8);
+      return;
+    }
+    if (a.wtype === 'fist') { // 連環拳：左右兩拳
+      for (let i = 0; i < 2; i++) this._later(i * 0.08, () => {
+        triggerSwing(a.hero);
+        const hit = { x: pos.x + Math.sin(a.facing + (i ? 0.3 : -0.3)) * 1.8, z: pos.z + Math.cos(a.facing + (i ? 0.3 : -0.3)) * 1.8 };
+        this.qfx.punch(hit, 0xffb35a);
+        this._damageArea(a, hit, 3, b * 0.26);
+      });
       return;
     }
     if (a.wtype === 'spear') { // 強力突刺：更長更粗
@@ -1285,7 +1332,13 @@ export class BattleScene {
     const critRate = (a.wtype === 'katana' ? 0.3 : 0.2) + (a.buffs.crit > 0 ? 0.3 : 0);
     const crit = Math.random() < critRate;
     const buff = (a.buffs.dmg > 0 ? 1.3 : 1) * (a.buffs.venom > 0 ? 1.4 : 1) * (a.feverTime > 0 ? 1.25 : 1);
-    const dmg = base * buff * rand(0.85, 1.15) * (crit ? 2 : 1);
+    const bossMul = m.boss ? 1 + (this.talent?.bossDmg || 0) : 1; // 天賦「屠龍者」（只算自己的）
+    const dmg = base * buff * rand(0.85, 1.15) * (crit ? 2 : 1) * (a.local ? bossMul : 1);
+    if (m.dummy) { // 木人樁：只跳數字，不會壞
+      m.flash = 0.12;
+      if (a.local) { this._number(m.group.position, fmt(dmg), crit ? 'crit' : 'dmg', 1); this.qfx.hit(m.group.position, styleOf(a.wtype).color, crit); }
+      return;
+    }
     m.hp -= dmg;
     m.flash = 0.12;
     const p = a.group.position;
@@ -1319,7 +1372,7 @@ export class BattleScene {
       this.combo++;
       this.comboTimer = 2.5;
       if (!this.duel && !this.map.town && this.feverTime <= 0) {
-        this.fever = Math.min(1, this.fever + (m.elite ? FEVER_PER_ELITE : FEVER_PER_KILL));
+        this.fever = Math.min(1, this.fever + (m.elite ? FEVER_PER_ELITE : FEVER_PER_KILL) * (1 + (this.talent?.feverGain || 0)));
         if (this.fever >= 1) this._feverStart();
       }
     }
@@ -1508,8 +1561,8 @@ export class BattleScene {
   // ═══ 狂熱 ══════════════════════════════════
   _feverStart() {
     this.fever = 0;
-    this.feverTime = FEVER_TIME;
-    this.player.feverTime = FEVER_TIME;
+    this.feverTime = this._feverMax();
+    this.player.feverTime = this.feverTime;
     for (const k in this.cool) this.cool[k] = 0; // 進入狂熱：技能冷卻全部轉好
     this._feverBurst(this.player);
     this._number(this.player.group.position, 'FEVER!!', 'fever');
@@ -1713,6 +1766,7 @@ export class BattleScene {
     const camQ = this.camera.quaternion;
     for (let i = this.mobs.length - 1; i >= 0; i--) {
       const m = this.mobs[i];
+      if (m.dummy) { m.flash = Math.max(0, m.flash - dt); continue; } // 村莊木人樁：不動
       if (m.boss) { this._updateBoss(m, dt); continue; }
       const g = m.group;
       if (!m.alive) {
@@ -1880,7 +1934,7 @@ export class BattleScene {
     const on = this.feverTime > 0;
     this.feverEl.style.opacity = hunting && (on || this.fever > 0.02) ? '1' : '0';
     this.feverEl.classList.toggle('on', on);
-    this.feverFill.style.width = `${(on ? this.feverTime / FEVER_TIME : this.fever) * 100}%`;
+    this.feverFill.style.width = `${(on ? this.feverTime / this._feverMax() : this.fever) * 100}%`;
     const label = on ? `狂熱中 ${this.feverTime.toFixed(1)}s` : `狂熱 ${Math.floor(this.fever * 100)}%`;
     if (this.feverLabel.textContent !== label) this.feverLabel.textContent = label;
     this.vignetteEl.classList.toggle('on', on);
@@ -1902,7 +1956,7 @@ export class BattleScene {
       g.fillStyle = color; g.fill();
       if (stroke) { g.lineWidth = 1.5; g.strokeStyle = stroke; g.stroke(); }
     };
-    for (const m of this.mobs) if (m.alive && !m.boss) dot(m.group.position.x, m.group.position.z, m.elite ? 3.5 : 2, m.elite ? '#ff9a2e' : '#ff4d4d');
+    for (const m of this.mobs) if (m.alive && !m.boss && !m.dummy) dot(m.group.position.x, m.group.position.z, m.elite ? 3.5 : 2, m.elite ? '#ff9a2e' : '#ff4d4d');
     if (this.boss) dot(this.boss.group.position.x, this.boss.group.position.z, 7, '#ff2a5c', '#fff');
     for (const n of this.npcs) dot(n.x, n.z, 4, '#f5c04a', '#000');
     for (const a of this.remotes.values()) dot(a.group.position.x, a.group.position.z, 3.5, '#5ad1ff', '#003');

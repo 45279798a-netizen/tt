@@ -19,6 +19,9 @@ import {
   rollItem, enhanceCap, enhanceCost, rerollCost, dismantleYield, reroll, INV_LIMIT,
 } from './gear.js';
 import { CLASS_SKILLS } from './skills.js';
+import { TALENTS, learnTalent, talentPoints, spentPoints, autoTalents } from './talents.js';
+import { ensureDaily, dailyAdd, dailyView, questReward, chestReward } from './daily.js';
+import { ACHIEVEMENTS, achieveView, achieveReward, achieveClaimable } from './achieve.js';
 import { REBIRTH_LV, rebirthOf, rebirthNext, rebirthBonus, titleOf, REBIRTH_COLORS } from './rebirth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -86,6 +89,9 @@ function migrate(p) {
   p.maxMap ??= p.mapId;
   p.essence ??= 0;
   p.inTown ??= false;
+  p.inField ??= false;
+  p.talents ||= {};                              // 天賦樹 { id: 等級 }
+  p.ach ||= { claimed: {}, points: 0 };          // 成就   // 在村莊南邊的「緣起獵場」（mapId = 自己最遠的地圖，強度跟著自己）
   delete p.skills; // 技能改成每職業固定，不再存玩家配置
   p.friends ||= [];
   p.friendReqs ||= [];
@@ -223,6 +229,19 @@ export function register(rawName, pw) {
   return { p, token: issueToken(p) };
 }
 
+/** AI 玩家：跟一般玩家一樣是存檔裡的帳號，只是多了 bot 標記，密碼隨機（沒人能登入） */
+export function createBot(name, style) {
+  if (findByName(name)) return null;
+  const p = newPlayer(name);
+  setPassword(p, crypto.randomBytes(12).toString('hex'));
+  p.bot = true;
+  p.botStyle = style;
+  players[p.id] = p;
+  scheduleSave();
+  return p;
+}
+export const botPlayers = () => Object.values(players).filter((p) => p.bot);
+
 export function login(rawName, pw) {
   const name = cleanName(rawName);
   pw = cleanPassword(pw);
@@ -314,6 +333,10 @@ export function settle(p, report = null, now = Date.now()) {
   p.mats[ma] = (p.mats[ma] || 0) + value * DROP.common * r.dropMul * party;
   p.mats[mb] = (p.mats[mb] || 0) + value * DROP.rare * r.dropMul * party;
   result.kills = Math.min(normal + elite, value);
+  dailyAdd(p, 'kill', result.kills);
+  dailyAdd(p, 'elite', Math.min(elite, Math.ceil(value / ELITE_VALUE)));
+  if (p.inField) dailyAdd(p, 'field', result.kills);
+  dailyAdd(p, 'skill', Math.min(30, Math.floor(Number(report.skills) || 0)));
   if (p.trial && now <= p.trial.endsAt + 3000 && p.mapId === p.trial.mapId) p.trial.kills += result.kills;
   result.gold = gold;
   while (p.exp >= expToNext(p.level, rebirthOf(p))) {
@@ -353,7 +376,8 @@ export function craft(p, base) {
 
   for (const [mat, n] of Object.entries(t.recipe)) p.mats[mat] -= n;
   p.gold -= t.gold;
-  const inst = rollItem(base);
+  const inst = rollItem(base, { luck: talentStatsOf(p).luck || 0 });
+  dailyAdd(p, 'craft');
   p.inv.push(inst);
   if (!p.codex.includes(base)) p.codex.push(base);
 
@@ -382,6 +406,7 @@ export function enhanceItem(p, uid) {
   p.gold -= c.gold;
   p.essence -= c.essence;
   it.lv += 1;
+  dailyAdd(p, 'enhance');
   scheduleSave();
   return it;
 }
@@ -414,7 +439,9 @@ export function dismantle(p, uids) {
       p.mats[m] = (p.mats[m] || 0) + n;
     }
   }
+  total.essence = Math.floor(total.essence * (1 + (talentStatsOf(p).essence || 0))); // 天賦「精華萃取」
   p.essence += total.essence;
+  dailyAdd(p, 'dismantle', list.length);
   const gone = new Set(list.map((x) => x.uid));
   p.inv = p.inv.filter((x) => !gone.has(x.uid));
   scheduleSave();
@@ -676,6 +703,69 @@ export function synth(p, id, times = 1) {
   return { to: Object.fromEntries(Object.entries(r.to).map(([k, v]) => [k, v * n])) };
 }
 
+// ── 天賦樹 ───────────────────────────────────
+const talentStatsOf = (p) => { const s = {}; for (const [id, lv] of Object.entries(p.talents || {})) for (const [k, v] of Object.entries(TALENTS[id]?.per || {})) s[k] = (s[k] || 0) + (v * lv) / 100; return s; };
+export { autoTalents };
+export function doLearnTalent(p, id) {
+  const err = learnTalent(p, String(id));
+  if (err) throw new GameError(err);
+  scheduleSave();
+  return { id, lv: p.talents[id] };
+}
+export const talentResetCost = (p) => Math.floor(MAPS[Math.min(p.maxMap, MAPS.length - 1)].goldPerKill * 2000);
+export function resetTalents(p) {
+  if (!spentPoints(p)) throw new GameError('還沒有學任何天賦');
+  payCost(p, { gold: talentResetCost(p) });
+  p.talents = {};
+  scheduleSave();
+}
+
+// ── 每日任務 ─────────────────────────────────
+const gpk = (p) => MAPS[Math.min(p.maxMap, MAPS.length - 1)].goldPerKill;
+function grant(p, r) {
+  p.gold += r.gold || 0;
+  p.essence += r.essence || 0;
+  p.eggs = (p.eggs || 0) + (r.eggs || 0);
+  for (const [m, n] of Object.entries(r.mats || {})) p.mats[m] = (p.mats[m] || 0) + n;
+}
+export function claimDaily(p, i) {
+  const q = ensureDaily(p).quests[Number(i)];
+  if (!q) throw new GameError('沒有這個任務');
+  if (q.claimed) throw new GameError('已經領過了');
+  if (q.prog < q.target) throw new GameError('任務還沒完成');
+  q.claimed = true;
+  const r = questReward(p, gpk(p));
+  grant(p, r);
+  scheduleSave();
+  return r;
+}
+export function claimDailyChest(p) {
+  const d = ensureDaily(p);
+  if (d.chest) throw new GameError('今天的寶箱已經開過了');
+  if (!d.quests.every((q) => q.claimed)) throw new GameError('5 個任務都領完才能開寶箱');
+  d.chest = true;
+  const r = chestReward(p, gpk(p));
+  grant(p, r);
+  scheduleSave();
+  return r;
+}
+
+// ── 成就 ─────────────────────────────────────
+export function claimAchieve(p, id, tier) {
+  const a = ACHIEVEMENTS.find((x) => x.id === id);
+  const t = Number(tier);
+  if (!a || !(t >= 0 && t < a.tiers.length)) throw new GameError('沒有這個成就');
+  const key = `${id}:${t}`;
+  if (p.ach.claimed[key]) throw new GameError('已經領過了');
+  if (a.value(p) < a.tiers[t]) throw new GameError('還沒達成');
+  p.ach.claimed[key] = true;
+  const r = achieveReward(t, gpk(p));
+  p.ach.points += r.points;
+  grant(p, r);
+  scheduleSave();
+  return r;
+}
+
 // ── 轉職（村莊的轉職殿堂）──────────────────────
 export function doRebirth(p) {
   if (!p.inTown) throw new GameError('要在村莊的轉職殿堂才能轉職');
@@ -718,6 +808,7 @@ export function endTrial(p) {
   const t = p.trial;
   if (!t) throw new GameError('沒有進行中的魔物潮');
   if (Date.now() < t.endsAt - 1500) throw new GameError('時間還沒到');
+  dailyAdd(p, 'trial');
   p.trial = null;
   const k = Math.floor(t.kills);
   const tier = t.mapId;
@@ -749,6 +840,7 @@ export function endTrial(p) {
 export function giveReward(id, { mats = {}, gold = 0, eggs = 0 } = {}) {
   const p = players[id];
   if (!p) return null;
+  dailyAdd(p, 'boss'); // 世界王 / 首領突襲結算
   p.eggs = (p.eggs || 0) + eggs;
   for (const [m, n] of Object.entries(mats)) p.mats[m] = (p.mats[m] || 0) + n;
   p.gold += gold;
@@ -795,7 +887,7 @@ export function friendList(p, isOnline) {
     return {
       id, name: f.name, level: f.level, cp: calcCP(calcStats(f)), pvp: f.pvp,
       online: isOnline(id), inTown: f.inTown, mapId: f.mapId,
-      where: f.inTown ? '村莊' : MAPS[f.mapId]?.name,
+      where: f.inTown ? '村莊' : f.inField ? '緣起獵場' : MAPS[f.mapId]?.name, bot: !!f.bot,
     };
   };
   return {
@@ -809,6 +901,7 @@ export function travelToFriend(p, id) {
   const f = players[id];
   if (!f || !p.friends.includes(id)) throw new GameError('對方不是你的好友');
   if (f.inTown) return enterTown(p);
+  if (f.inField) return enterField(p);
   if (f.mapId > p.maxMap) throw new GameError(`你還沒解鎖「${MAPS[f.mapId].name}」`);
   changeMap(p, f.mapId);
 }
@@ -816,6 +909,7 @@ export function travelToFriend(p, id) {
 // ── 村莊 ─────────────────────────────────────
 export function enterTown(p) {
   p.inTown = true;
+  p.inField = false;
   scheduleSave();
 }
 
@@ -846,6 +940,9 @@ function unlockState(p, mapId) {
   };
 }
 
+/** AI 玩家判斷能不能去下一區 */
+export const canUnlockMap = (p, mapId) => !!unlockState(p, mapId)?.ok;
+
 export function changeMap(p, mapId) {
   const u = unlockState(p, mapId);
   if (!u) throw new GameError('沒有這張地圖');
@@ -857,6 +954,15 @@ export function changeMap(p, mapId) {
   p.mapId = mapId;
   p.maxMap = Math.max(p.maxMap, mapId);
   p.inTown = false;
+  p.inField = false;
+  scheduleSave();
+}
+
+/** 緣起獵場：村莊南邊的共用狩獵場，怪物強度 / 收益 = 自己去過最遠的那張地圖，所有人（含 AI 玩家）都在同一張 */
+export function enterField(p) {
+  p.mapId = Math.min(p.maxMap, MAPS.length - 1);
+  p.inTown = false;
+  p.inField = true;
   scheduleSave();
 }
 
@@ -889,6 +995,9 @@ export function snapshot(p) {
     expToNext: expToNext(p.level, rebirthOf(p)),
     rebirth: rebirthOf(p), title: titleOf(p, stats.wtype), rebirthNext: rebirthNext(p, MAPS),
     admin: !!p.admin,
+    talents: p.talents, talentPoints: talentPoints(p), talentSpent: spentPoints(p), talentResetCost: talentResetCost(p),
+    daily: dailyView(p, gpk(p)), achieve: achieveView(p, gpk(p)),
+    badges: { daily: ensureDaily(p).quests.filter((q) => !q.claimed && q.prog >= q.target).length + (ensureDaily(p).quests.every((q) => q.claimed) && !ensureDaily(p).chest ? 1 : 0), achieve: achieveClaimable(p), talent: Math.max(0, talentPoints(p) - spentPoints(p)) },
     gold: p.gold,
     totalKills: p.totalKills,
     mapId: p.mapId,
@@ -903,7 +1012,7 @@ export function snapshot(p) {
     equipped: p.equipped,
     gear: gearOf(p),
     codex: p.codex,
-    inTown: p.inTown,
+    inTown: p.inTown, inField: !!p.inField,
     skills: CLASS_SKILLS, // 固定技能（前端用目前武器類型取對應的 4 招）
     friendReqs: p.friendReqs.length,
     setBonus: setBonus(Object.values(gearOf(p))),
@@ -929,7 +1038,7 @@ export function snapshot(p) {
 export function leaderboard(limit = 20) {
   return Object.values(players)
     .map((p) => {
-      return { name: p.name, level: p.level, cp: calcCP(calcStats(p)), totalKills: p.totalKills, pvp: p.pvp };
+      return { name: p.name, level: p.level, rebirth: rebirthOf(p), cp: calcCP(calcStats(p)), totalKills: p.totalKills, pvp: p.pvp, bot: !!p.bot };
     })
     .sort((a, b) => b.cp - a.cp)
     .slice(0, limit);
@@ -954,7 +1063,7 @@ export function publicInfo(id) {
     id: p.id, name: p.name, level: p.level, mapId: p.mapId,
     rebirth: rebirthOf(p), title: titleOf(p, stats.wtype), skillMul: stats.skillMul,
     equipped: gearOf(p), atk: stats.atk, dps: stats.dps, wtype: stats.wtype,
-    cp: calcCP(stats), pvp: p.pvp, zone: p.inTown ? -1 : p.mapId, inTown: p.inTown,
+    cp: calcCP(stats), pvp: p.pvp, zone: p.inTown ? -1 : p.inField ? 'F' : p.mapId, inTown: p.inTown, inField: !!p.inField, bot: !!p.bot,
     mount: p.mount, mountSpeed: stats.mountSpeed,
     wing: p.wing, wingLv: p.wing ? p.wings[p.wing]?.lv ?? 1 : 0,
     pet: p.pet, petLv: p.pet ? p.pets[p.pet]?.lv ?? 1 : 0,

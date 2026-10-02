@@ -35,12 +35,13 @@ export const ENHANCE_PER_LV = 0.06; // 每強化一級，主屬性 +6%
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 
-function rollGrade(slot) {
+function rollGrade(slot, luck = 0) {
   let r = Math.random();
   for (const g of [...GRADES].reverse()) {
     if (g.weaponOnly && slot !== 'weapon') continue;
-    if (r < g.chance) return g.id;
-    r -= g.chance;
+    const chance = g.id >= 3 ? g.chance * (1 + luck) : g.chance; // 天賦「幸運星」：傳說 / 星輝機率提高
+    if (r < chance) return g.id;
+    r -= chance;
   }
   return 0;
 }
@@ -58,7 +59,7 @@ function rollAffixes(slot, n) {
 /** 鍛造出一件新裝備（可指定品質，用於舊存檔轉換） */
 export function rollItem(base, forced = {}) {
   const t = ITEMS[base];
-  const grade = forced.grade ?? rollGrade(t.slot);
+  const grade = forced.grade ?? rollGrade(t.slot, forced.luck || 0);
   return {
     uid: crypto.randomBytes(5).toString('hex'),
     base,

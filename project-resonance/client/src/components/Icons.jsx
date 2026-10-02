@@ -1,7 +1,7 @@
 import { THEMES } from '../game3d/themes.js';
 
 export const SLOT_ICON = { weapon: '🗡️', helm: '⛑️', armor: '🛡️', gloves: '🧤', boots: '🥾' };
-const WEAPON_ICON = { great: '🗡️', katana: '⚔️', dual: '🔪', staff: '🪄', spear: '🔱', bow: '🏹' };
+const WEAPON_ICON = { great: '🗡️', katana: '⚔️', dual: '🔪', staff: '🪄', spear: '🔱', bow: '🏹', scythe: '☠️', fist: '👊' };
 
 export const setColor = (set) => (set >= 0 ? THEMES[set % THEMES.length].mob : '#8a7a66');
 

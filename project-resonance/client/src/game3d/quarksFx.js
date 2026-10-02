@@ -832,6 +832,78 @@ export class QuarksFx {
     this.smoke(pos, 6, 0xc9e8d0, 2.5, 1.2, radius * 0.6);
   }
 
+  // ═══ 鐮刀 / 拳套（v0.4）═══════════════════════
+
+  /** 拳頭命中：火焰爆光 + 往前噴的火星 + 小衝擊環 */
+  punch(pos, color = 0xff8a3a) {
+    if (!this._spend(0.6)) return;
+    this._play({
+      startLife: new ConstantValue(0.16), startSpeed: new ConstantValue(0), startSize: new ConstantValue(1.6),
+      startColor: new ConstantColor(c4(color)), material: this.mat.flare, startRotation: new IntervalValue(0, Math.PI),
+      shape: new PointEmitter(), emissionBursts: burst(1),
+    }, pos, { y: 1, behaviors: [new SizeOverLife(curve(0.3, 1.2, 1, 0.4)), new ColorOverLife(hot(color, 0.1))] });
+    this.sparks(pos, this.lite ? 3 : 5, color, 6, 0.3, { y: 1 });
+    this.shock(pos, 1.2, color, 0.18, 0.9);
+  }
+
+  /** 鎖鏈：從 from 甩到 to 的一串暗紫光點（Trail）+ 末端鉤爪星芒 */
+  chain(from, to, color = 0xa66bff, life = 0.18) {
+    this.comet(from, to, color, life, { width: 0.25, length: 14, head: 0.9 });
+    this.tweens.push({ t: 0, life, fn: (k) => { if (k >= 1) this.flash(to, 1.6, color, 0.2, 1); } });
+  }
+
+  /** 亡靈潮：一排往前湧的鬼火（Trail 拖尾的魂火 + 煙霧牆） */
+  ghostWave(origin, angle, length, color = 0x8a5aff, life = 0.6) {
+    const dx = Math.sin(angle), dz = Math.cos(angle), sx = Math.cos(angle), sz = -Math.sin(angle);
+    for (let i = -2; i <= 2; i++) {
+      const o = { x: origin.x + sx * i * 0.9, z: origin.z + sz * i * 0.9 };
+      this.comet(o, { x: o.x + dx * length, z: o.z + dz * length }, i % 2 ? color : 0xc8b0ff, life, { width: 0.7, length: 20, head: 1.4, y0: 0.8 + Math.abs(i) * 0.2, y1: 1.2 });
+    }
+    this.tweens.push({ t: 0, life, fn: (k) => {
+      if (Math.random() < 0.5) this.smoke({ x: origin.x + dx * length * k, z: origin.z + dz * length * k }, 2, 0x2a1a3a, 2, 0.7, 1.6);
+    } });
+  }
+
+  /** 黑月：天上的暗色月亮慢慢降下（光暈 + 外圈星芒），落地時呼叫 onHit */
+  darkMoon(pos, radius, life = 1.2, color = 0x8a5aff, onHit) {
+    const gy = this.gy(pos.x, pos.z);
+    const top = gy + 12;
+    const moon = this._play({
+      duration: life, emissionOverTime: new ConstantValue(30), startLife: new ConstantValue(0.12), startSpeed: new ConstantValue(0),
+      startSize: new ConstantValue(radius * 0.9), startColor: new ConstantColor(c4(0x1a0a2a)), material: this.mat.glow, shape: new PointEmitter(),
+    }, { x: pos.x, y: top, z: pos.z }, {});
+    const rim = this._play({
+      duration: life, emissionOverTime: new ConstantValue(30), startLife: new ConstantValue(0.15), startSpeed: new ConstantValue(0),
+      startSize: new ConstantValue(radius * 1.1), startColor: new ConstantColor(c4(color)), material: this.mat.ring, shape: new PointEmitter(),
+    }, { x: pos.x, y: top, z: pos.z }, {});
+    this.rune(pos, radius, color, life + 0.4, -1.5);
+    this.converge(pos, 40, 0xc8b0ff, radius, life * 0.8, 1);
+    this.tweens.push({ t: 0, life, fn: (k) => {
+      const y = top + (gy + 1 - top) * k * k;
+      for (const ps of [moon, rim]) ps.emitter.position.set(pos.x, y, pos.z);
+      if (k >= 1) {
+        this.flash(pos, radius * 1.3, color, 0.7, 1);
+        this.light(pos, color, 75, 0.9, radius * 3, 2);
+        this.shock(pos, radius * 1.2, color, 0.7);
+        this.shock(pos, radius * 0.8, 0xffffff, 0.45);
+        this.wall(pos, 0.5, radius, 2.6, color, 0.7);
+        this.crack(pos, radius, color, 1.6);
+        this.embers(pos, 40, 0xc8b0ff, radius * 0.6, 2);
+        this.smoke(pos, 10, 0x2a1a3a, 4, 1.4, radius * 0.6);
+        onHit?.();
+      }
+    } });
+  }
+
+  /** 火焰昇龍：火柱 + 往上捲的火旋 + 火星 */
+  flamePillar(pos, color = 0xff6a2a) {
+    this.beam(pos, 1.2, 9, color, 0.6);
+    this.vortex(pos, 1.6, color, 0.8, { n: 50, rise: 10, spin: 12, size: 0.45 });
+    this.flash(pos, 4, 0xffb35a, 0.35, 1.2);
+    this.sparks(pos, 22, 0xffd08a, 10, 0.6, { up: 1.6 });
+    this.embers(pos, 16, color, 1.5, 1.4);
+  }
+
   // ═══ 轉職 ════════════════════════════════
 
   /** 轉職光環（每 0.9 秒呼叫）：腳下淡淡的法陣 + 往上飄的光點，轉數越高光點越多 */
