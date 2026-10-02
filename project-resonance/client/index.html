@@ -15,7 +15,14 @@
     <title>Project Resonance：緣起</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- 載入畫面：JS 還沒下載完就先顯示（React 起來後接手顯示真正的進度） -->
+    <div id="root"><div id="boot" style="position:fixed;inset:0;display:grid;place-items:center;background:#0b0a14;color:#f5c04a;font:600 15px 'Noto Sans TC',sans-serif">
+      <div style="width:min(320px,70vw);text-align:center">
+        <div style="font-size:34px;font-weight:900;letter-spacing:.1em">緣起</div>
+        <div id="boot-text" style="margin:14px 0 8px;color:#ffffffaa;font-size:13px">下載遊戲程式中…</div>
+        <div style="height:8px;border-radius:99px;background:#ffffff1a;overflow:hidden"><i id="boot-bar" style="display:block;height:100%;width:8%;background:linear-gradient(90deg,#f5c04a,#ffe08a);border-radius:99px;transition:width .3s"></i></div>
+      </div>
+    </div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

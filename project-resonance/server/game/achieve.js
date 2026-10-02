@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────
 // 成就：一輩子的目標，每達成一階可以領一次獎勵 + 成就點
-//  - 成就點永久加成：每 10 點攻擊、生命 +0.5%（在 formulas.calcStats 裡算）
+//  - 成就點永久加成：每 10 點攻擊、生命 +0.2%（在 formulas.calcStats 裡算）
 //  - 進度都是從玩家資料直接算出來的（擊殺數、等級、地圖、收藏…），不用另外記錄
 // ─────────────────────────────────────────────
 import { ITEMS } from './items.js';
@@ -25,7 +25,8 @@ const POINTS = [10, 20, 40, 80];
 
 export const achievePoints = (p) => p.ach?.points || 0;
 /** 成就點的永久加成 */
-export const achieveBonus = (p) => (Math.floor(achievePoints(p) / 10) * 0.5) / 100;
+// v0.5 平衡：每 10 點 +0.5% → 全部做完 +75% 太多，改成 +0.2%（全部做完約 +30%）
+export const achieveBonus = (p) => (Math.floor(achievePoints(p) / 10) * 0.2) / 100;
 
 export function achieveReward(tier, goldPerKill) {
   return { essence: 40 * (tier + 1), gold: Math.floor(goldPerKill * 500 * (tier + 1)), eggs: tier >= 2 ? 1 : 0, points: POINTS[tier] };

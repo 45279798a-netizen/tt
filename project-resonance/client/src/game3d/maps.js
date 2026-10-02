@@ -405,6 +405,37 @@ export const MAP_DEFS = {
     mob: { shape: 'slime', color: '#ffb347' },
   },
 
+  // ── 深淵祭壇（巨大首領的專屬地圖）─────────────
+  // 首領站在中央（arena），四周是圓形石台、石柱圈、紫霧
+  boss: {
+    name: '深淵祭壇',
+    R: 42,
+    sky: '#1a1030', fog: ['#2a1a40', 30, 80],
+    hemi: ['#d8c4ff', '#1a1028', 1.35], sun: ['#e8d0ff', 1.5],
+    ground: { a: '#3a3048', b: '#443858', c: '#30283e', path: '#6a5a80', bank: '#2a2236', edge: '#1e1828' },
+    edgeRise: 0.6,
+    spawn: { x: 0, z: 30 },
+    arena: { x: 0, z: -4, r: 18 },
+    plaza: { x: 0, z: -4, r: 20, color: '#4e4466' },
+    hills: [{ x: -34, z: -30, r: 10, h: 2.6 }, { x: 34, z: -30, r: 10, h: 2.6 }],
+    paths: [{ pts: [[0, 46], [0, 14]], w: 4.5 }],
+    rivers: [], lakes: [], bridges: [], camps: [],
+    scatter: [
+      { type: 'obsidian', n: 90, band: [30, 60], collide: 0.8 },
+      { type: 'deadTree', n: 30, band: [28, 60], collide: 0.5 },
+      { type: 'rock', n: 30, band: [26, 60], collide: 0.9 },
+    ],
+    landmarks: [
+      { type: 'pillarRing', x: 0, z: -4, s: 2.2, collide: 0 },
+      { type: 'ruinGate', x: 0, z: 22, s: 1.3, collide: 0 },
+      { type: 'spire', x: -30, z: -20, s: 1.2, collide: 3 },
+      { type: 'spire', x: 30, z: -20, s: 1.2, collide: 3 },
+      { type: 'banner', x: -6, z: 26, s: 1, color: '#b98cff' }, { type: 'banner', x: 6, z: 26, s: 1, color: '#b98cff' },
+    ],
+    ambient: 'spores',
+    mob: { shape: 'spirit', color: '#b98cff' },
+  },
+
   // ── 緣起村（和平區） ──────────────────────
   // ── 莊園（每個人自己的，peaceful）─────────────
   manor: {

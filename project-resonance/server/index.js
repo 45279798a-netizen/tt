@@ -2,6 +2,7 @@
 // Project Resonance 本機私服 — Express 主程式
 // ─────────────────────────────────────────────
 import express from 'express';
+import compression from 'compression';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,8 +26,8 @@ import {
   buyEgg, hatchEgg, feedPet, equipPet,
   manorCollect, manorBuild, manorUpgrade, manorRemove, manorInfo, manorVisit, synth, synthRecipes,
   friendRequest, friendAnswer, friendRemove, friendList, travelToFriend,
-  changeMap, snapshot, leaderboard, GameError, doRebirth, enterField,
-  doLearnTalent, resetTalents, claimDaily, claimDailyChest, claimAchieve,
+  changeMap, snapshot, leaderboard, GameError, doRebirth, enterField, enterBoss,
+  doLearnTalent, resetTalents, setLoadout, claimDaily, claimDailyChest, claimAchieve,
 } from './game/state.js';
 import { startBots, botFriendReply } from './game/bots.js';
 import { initAdmin, claimAdmin, needAdmin, adminPlayers, adminGive, adminAnnounce, adminRevoke } from './game/admin.js';
@@ -40,6 +41,7 @@ const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist');
 loadSave();
 const ADMIN_KEY = initAdmin();
 const app = express();
+app.use(compression()); // gzip：遊戲程式 1.3 MB → 約 0.37 MB，手機開啟快很多
 app.use(express.json());
 
 // 小工具：包住 handler，統一錯誤格式
@@ -160,6 +162,7 @@ app.post('/api/me/trial/end', action((p) => endTrial(p)));
 app.post('/api/me/rebirth', action((p) => doRebirth(p)));
 // 天賦樹、每日任務、成就
 app.post('/api/me/talent', action((p, b) => doLearnTalent(p, b.id)));
+app.post('/api/me/loadout', action((p, b) => setLoadout(p, String(b.cls || ''), b.ids)));
 app.post('/api/me/talent/reset', action((p) => resetTalents(p)));
 app.post('/api/me/daily/claim', action((p, b) => claimDaily(p, b.i)));
 app.post('/api/me/daily/chest', action((p) => claimDailyChest(p)));
@@ -183,6 +186,7 @@ app.post('/api/me/mount/equip', action((p, b) => equipMount(p, b.id ? String(b.i
 app.post('/api/me/map', action((p, b) => changeMap(p, Number(b.mapId))));
 app.post('/api/me/town', action((p) => enterTown(p)));
 app.post('/api/me/field', action((p) => enterField(p))); // 村莊南邊的緣起獵場
+app.post('/api/me/boss', action((p) => enterBoss(p)));   // 深淵祭壇（巨大首領討伐）
 // 好友
 app.get('/api/me/friends', route((req) => friendList(me(req), isOnline)));
 app.post('/api/me/friends/request', route((req) => {

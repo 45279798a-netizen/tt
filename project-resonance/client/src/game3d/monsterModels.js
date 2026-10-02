@@ -13,11 +13,17 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 const assets = {}; // troll / vampire → { scene, clips, height }
 const variants = new Map(); // 依顏色快取的皮膚貼圖
 
-export async function loadMonsterModels() {
+const SIZES = { troll: 190_000, vampire: 955_000, partner: 334_000, wing: 277_000 }; // 預估大小（伺服器沒給長度時用）
+/** onProgress(0~1)：給載入畫面的進度條 */
+export async function loadMonsterModels(onProgress) {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  await Promise.all(['troll', 'vampire', 'partner', 'wing'].map(async (name) => {
+  const got = {};
+  const total = Object.values(SIZES).reduce((a, b) => a + b, 0);
+  const tick = () => onProgress?.(Math.min(1, Object.values(got).reduce((a, b) => a + b, 0) / total));
+  await Promise.all(Object.keys(SIZES).map(async (name) => {
     try {
-      const g = await loader.loadAsync(`/models/${name}.glb`);
+      const g = await loader.loadAsync(`/models/${name}.glb`, (e) => { got[name] = Math.min(SIZES[name], e.loaded * (e.total ? SIZES[name] / e.total : 1)); tick(); });
+      got[name] = SIZES[name]; tick();
       // 量身高（用第一個動畫的第一格姿勢，免得 T-pose 量錯）
       const mixer = new THREE.AnimationMixer(g.scene);
       if (g.animations[0]) mixer.clipAction(g.animations[0]).play();
@@ -29,6 +35,7 @@ export async function loadMonsterModels() {
       assets[name] = { scene: g.scene, clips: Object.fromEntries(g.animations.map((a) => [a.name, a])), height: box.max.y - box.min.y };
     } catch (e) {
       console.warn(`[怪物模型] ${name} 載入失敗，改用預設怪物`, e);
+      got[name] = SIZES[name]; tick();
     }
   }));
 }

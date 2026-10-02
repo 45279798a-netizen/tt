@@ -119,13 +119,14 @@ function partyCount(id) {
   if (!c || c.duel || Date.now() - c.lastSeen > 15_000) return 0;
   const me = publicInfo(id);
   if (!me || me.inTown) return 0;
-  let n = 0;
+  let n = 0, bots = 0;
   for (const o of clients.values()) {
     if (o.id === id || o.duel || Date.now() - o.lastSeen > 15_000) continue;
-    if (o.bot && me.zone !== 'F') continue; // AI 玩家只在緣起獵場算組隊加成
-    if (publicInfo(o.id)?.zone === me.zone) n++;
+    if (publicInfo(o.id)?.zone !== me.zone) continue;
+    if (o.bot) bots++; else n++;
   }
-  return n;
+  // v0.5 平衡：AI 玩家只在緣起獵場算，而且最多算 1 位（+10%）；原本一進獵場就固定 +30%
+  return n + (me.zone === 'F' ? Math.min(1, bots) : 0);
 }
 setPartyCounter(partyCount);
 setBossPresence((mapId) => [...clients.values()].filter((o) => Date.now() - o.lastSeen < 15_000 && !o.duel && publicInfo(o.id)?.zone === mapId).map((o) => o.id));

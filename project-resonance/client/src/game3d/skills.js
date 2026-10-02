@@ -9,6 +9,10 @@
 //   星杖 星彈 3.6×5 / 隕星 3.2×5 / 光束 1.5×6 / 審判 星雨 2×10 + 崩落 10
 //   長槍 突刺 0.9×5 / 龍騰 6 / 螺旋 1.5×4 / 天龍 8 + 落雷 1.5×6 + 雷爆 4（≈ 3.0）
 //   鐮刀 收割 4.5 / 鎖鏈 6 / 亡靈潮 2.5×3 / 月蝕 14（範圍大，≈ 2.8）
+//   v0.5 新招（每招 ≈ 0.6~0.75 秒份 / 秒，跟原本 4 招互換時平衡）：
+//   衝鋒斬 5/7、劍刃風暴 1.66×6/14、新月斬 5/7、千本櫻 1.2×12 + 6/15、毒刃 +40% 6 秒、十字斬 2.5×2/7
+//   星爆 5.5/8、重力井 1.5×5 + 3/14、橫掃 4.8/7、雷槍雨 2×8 散落/12、狙擊 7/9（單體）、陷阱 6.5/10
+//   靈魂收割 6/10、冥界之門 1.6×6/16、迅雷步 4/6、鬥氣爆發 攻速×2 6 秒 + 3/18
 //   拳套 百裂 0.45×10 / 昇龍 6 / 掌風 6 / 天拳 12（貼身，≈ 3.0）
 //   長弓 散射 1.8×7 扇形 / 穿雲 7 / 箭雨 1.4×12 + 風爆 3.5 / 千矢 1×30 + 龍捲 8（遠程 ≈ 2.6）
 // 平衡調整（每秒對「一隻怪」的額外傷害，單位 = 秒份）：
@@ -572,6 +576,203 @@ export function castSkillFx(S, a, id) {
           if (local) { S._bigImpact(); S._screenFlash('255,170,90'); }
         });
       });
+      break;
+    }
+    // ══ v0.5 新增：每把武器 2 招（6 招選 4）═══════════
+    case 'g_charge': { // 衝鋒斬：往前衝 8 公尺，路上的都劈開
+      const from = at(pos), ang = f;
+      Q.rune(from, 2.5, 0xffb347, 0.6, 5);
+      const to = at(moveForward(S, a, 8));
+      triggerSwing(a.hero);
+      S._lineSlash(a, from, ang, 9, 3.2, b * 5, 0xffb347, 0.35);
+      Q.comet(from, to, 0xffd08a, 0.18, { width: 1.4, length: 16, head: 2 });
+      for (let d = 1; d <= 8; d += 2) Q.dust(ahead(from, ang, d), 0xb9a58a, 2);
+      S._later(0.18, () => { Q.crescent(to, ang, 4, 0xffb347, 0.3, { arc: 3.2, sweep: 2.4, tilt: -0.5 }); Q.shock(to, 4, 0xffd08a, 0.35); });
+      if (local) { S.shake = Math.max(S.shake, 0.3); S.vib(30); }
+      break;
+    }
+    case 'g_storm': { // 劍刃風暴：3 秒旋轉，6 次範圍傷害
+      Q.rune(pos, 6.5, 0xffb347, 3.2, 3);
+      Q.vortex(pos, 5, 0xffd08a, 3, { n: 120, rise: 2, spin: 12, follow: a, size: 0.4 });
+      for (let i = 0; i < 6; i++) S._later(i * 0.5, () => {
+        triggerSwing(a.hero);
+        const p = at(a.group.position);
+        Q.crescent(p, rand(0, 6.28), 6, i % 2 ? 0xffffff : 0xffb347, 0.4, { arc: 6.2, sweep: 4, tilt: rand(-0.3, 0.3), follow: a });
+        S._damageArea(a, p, 6, b * 1.66);
+      });
+      if (local) S.vib([20, 40, 20, 40, 20]);
+      break;
+    }
+    case 'k_moon': { // 新月斬：一道往前飛 12 公尺的巨大月牙
+      triggerSwing(a.hero);
+      const o = at(pos), ang = f;
+      Q.crescent(o, ang, 4.5, 0xc7f0ff, 0.25, { arc: 3, sweep: 2.6, tilt: -0.3 });
+      Q.comet(ahead(o, ang, 1), ahead(o, ang, 13), 0x9fdcff, 0.4, { width: 4.5, length: 18, head: 3 });
+      Q.comet(ahead(o, ang, 1), ahead(o, ang, 13), 0xffffff, 0.4, { width: 1.5, length: 14, head: 0.1 });
+      S._later(0.12, () => S._lineSlash(a, o, ang, 13, 5, b * 5, 0xc7f0ff, 0.3));
+      if (local) S.vib(30);
+      break;
+    }
+    case 'k_thousand': { // 千本櫻：四周亂斬 12 刀 + 花瓣爆散
+      const o = at(pos);
+      Q.rune(o, 8, 0xff6fa8, 1.8, 2);
+      for (let i = 0; i < 12; i++) S._later(i * 0.1, () => {
+        const p = ahead(o, rand(0, 6.28), rand(1.5, 7));
+        triggerSwing(a.hero);
+        Q.crescent(p, rand(0, 6.28), 2.4, i % 3 ? 0xff5a9a : 0xffffff, 0.22, { arc: 2, sweep: 2.4, tilt: rand(-0.8, 0.8) });
+        Q.petals(p, local ? 6 : 3, 0xffb3d1, 4);
+        S._damageArea(a, p, 2.5, b * 1.2);
+      });
+      S._later(1.3, () => { Q.flash(o, 8, 0xff5a9a, 0.5, 1); Q.shock(o, 9, 0xffb3d1, 0.5); Q.petals(o, local ? 40 : 16, 0xffb3d1, 10); S._damageArea(a, o, 8, b * 6); if (local) S._bigImpact(0.4); });
+      break;
+    }
+    case 'd_venom': { // 毒刃：6 秒傷害 +40% + 毒霧
+      a.buffs.venom = 6;
+      Q.rune(pos, 3, 0x7ed957, 1, -4);
+      Q.vortex(pos, 1.6, 0x7ed957, 1.2, { n: 40, rise: 5, spin: 8, follow: a });
+      Q.smoke(pos, 8, 0x4a8a3a, 2.4, 1.4, 3);
+      Q.sparks(pos, 16, 0xa6ff7a, 7, 0.6, { up: 1.5 });
+      S._damageArea(a, pos, 4, b * 2);
+      if (local) S.vib([20, 20, 20]);
+      break;
+    }
+    case 'd_xcut': { // 十字斬：前方交叉兩道斬擊
+      const o = at(pos);
+      for (const [i, off] of [[0, 0.5], [1, -0.5]]) S._later(i * 0.1, () => {
+        triggerSwing(a.hero);
+        const ang = a.facing + off, from = ahead(o, ang + Math.PI, 1.5);
+        S._lineSlash(a, from, ang, 8, 2.6, b * 2.5, i ? 0xff8a9a : 0xffffff, 0.35);
+        Q.comet(from, ahead(from, ang, 8), 0xff5c7a, 0.15, { width: 1, length: 10, head: 1.2 });
+      });
+      S._later(0.22, () => { const c = ahead(o, f, 2.5); Q.flash(c, 3, 0xff5c7a, 0.3, 1); Q.sparks(c, 12, 0xffc2c2, 8, 0.4); });
+      break;
+    }
+    case 's_nova': { // 星爆：身邊炸開一圈星光
+      Q.converge(pos, 24, 0xc9f2ff, 4, 0.3, 1);
+      S._later(0.3, () => {
+        const c = at(a.group.position);
+        Q.flash(c, 7, 0x9be7ff, 0.4, 1);
+        Q.shock(c, 6.5, 0xc9f2ff, 0.45);
+        Q.wall(c, 0.5, 6, 1.8, 0x9be7ff, 0.45);
+        Q.sparks(c, 30, 0xffffff, 12, 0.6, { up: 1.3 });
+        for (let i = 0; i < 6; i++) Q.comet(c, ahead(c, (i / 6) * 6.28, 6), 0x9be7ff, 0.2, { width: 0.4, length: 8, head: 1 });
+        S._damageArea(a, c, 6, b * 5.5);
+        if (local) S.shake = Math.max(S.shake, 0.3);
+      });
+      break;
+    }
+    case 's_gravity': { // 重力井：黑洞吸怪 1.5 秒，最後爆開
+      const c = ahead(pos, f, 7);
+      Q.rune(c, 5, 0xc98cff, 2, -3);
+      Q.vortex(c, 5, 0x6a3ab0, 1.8, { n: 100, rise: 0.5, spin: -10, size: 0.45 });
+      Q.converge(c, 50, 0xc98cff, 6, 1.4, 1);
+      triggerSwing(a.hero);
+      for (let i = 0; i < 5; i++) S._later(0.2 + i * 0.3, () => {
+        for (const m of S.mobs) {
+          if (!m.alive || m.boss || m.dummy) continue;
+          const dx = c.x - m.group.position.x, dz = c.z - m.group.position.z, d = Math.hypot(dx, dz);
+          if (d < 6 && d > 0.6) { m.group.position.x += dx * 0.25; m.group.position.z += dz * 0.25; }
+        }
+        S._damageArea(a, c, 5, b * 1.5);
+      });
+      S._later(1.8, () => { Q.flash(c, 8, 0xc98cff, 0.5, 1); Q.shock(c, 7, 0xffffff, 0.5); Q.light(c, 0xc98cff, 60, 0.6, 20); S._damageArea(a, c, 5.5, b * 3); if (local) S._bigImpact(0.4); });
+      break;
+    }
+    case 'sp_sweep': { // 橫掃千軍：長槍大弧度橫掃
+      triggerSwing(a.hero);
+      Q.crescent(pos, f, 6.2, 0x7df9ff, 0.35, { arc: 4.7, sweep: 3.6, tilt: 0.1, follow: a });
+      S._later(0.08, () => Q.crescent(pos, f, 5.8, 0xffffff, 0.25, { arc: 4.7, sweep: 3.6, tilt: -0.1, follow: a }));
+      Q.sparks(pos, 18, 0xbff8ff, 9, 0.4);
+      Q.lightning(ahead(pos, f, 4), 0x7df9ff, 7);
+      S._damageArea(a, pos, 6, b * 4.8);
+      if (local) S.vib(30);
+      break;
+    }
+    case 'sp_rain': { // 雷槍雨：8 支雷槍落在附近的敵人身上
+      const ts = S.targetsNear(a, 12, 8);
+      while (ts.length < 8) ts.push(ahead(pos, f + rand(-1, 1), rand(3, 10)));
+      Q.beam(pos, 0.8, 10, 0x7df9ff, 0.5);
+      triggerSwing(a.hero);
+      ts.forEach((t, i) => S._later(0.15 + i * 0.08, () => {
+        const gy = S.gy(t.x, t.z);
+        Q.comet({ x: t.x + 0.5, y: gy + 12, z: t.z - 1 }, { x: t.x, y: gy + 0.2, z: t.z }, 0x7df9ff, 0.15, { width: 0.5, length: 10, head: 1.3 });
+        S._later(0.15, () => { Q.lightning(t, 0xbff8ff, 6); S._damageArea(a, t, 2.5, b * 2); });
+      }));
+      break;
+    }
+    case 'b_snipe': { // 狙擊：瞄準最遠的敵人射出致命一箭
+      const all = S.targetsNear(a, 18, 30);
+      const t = all.length ? all[all.length - 1] : ahead(pos, f, 16);
+      Q.converge(ahead(pos, f, 0.8), 14, 0xffffff, 1.6, 0.4, 1.2);
+      S._later(0.4, () => {
+        triggerSwing(a.hero);
+        const p = at(a.group.position);
+        Q.comet(ahead(p, Math.atan2(t.x - p.x, t.z - p.z), 0.6), t, 0xffffff, 0.12, { width: 0.5, length: 18, head: 1.6 });
+        Q.streak(p, t, 0x8affc1, 0.3, 0.6);
+        S._later(0.12, () => { Q.flash(t, 3.5, 0x8affc1, 0.3, 1); Q.shock(t, 2.5, 0xffffff, 0.3); S._damageArea(a, t, 2, b * 7); });
+        if (local) S.vib(40);
+      });
+      break;
+    }
+    case 'b_trap': { // 爆裂陷阱：放在前方，0.8 秒後爆炸
+      const c = ahead(pos, f, 6);
+      triggerSwing(a.hero);
+      Q.arrow(at(pos), c, 0xffb347, 0.2);
+      Q.rune(c, 2.2, 0xff8a3a, 1, 6);
+      S._later(0.8, () => {
+        Q.flash(c, 6, 0xffb347, 0.4, 0.8); Q.shock(c, 4.8, 0xff8a3a, 0.45); Q.debris(c, 0x6a4a2a, 10, 9);
+        Q.fireTrail(c, 1, true, 0xff6a2a); Q.embers(c, 20, 0xff8a3a, 3, 1.6); Q.light(c, 0xff8a3a, 50, 0.5, 16);
+        S._damageArea(a, c, 4.5, b * 6.5);
+        if (local) S.shake = Math.max(S.shake, 0.35);
+      });
+      break;
+    }
+    case 'sc_soul': { // 靈魂收割：化成魂影穿過前方 8 公尺
+      const from = at(pos), ang = f;
+      Q.smoke(from, 6, 0x2a1a3a, 2, 0.7, 1);
+      const to = at(moveForward(S, a, 8));
+      Q.comet(from, to, 0x8a5aff, 0.2, { width: 1.2, length: 16, head: 1.6 });
+      S._lineSlash(a, from, ang, 9, 3.2, b * 6, 0xa66bff, 0.35);
+      S._later(0.2, () => { Q.crescent(to, ang + Math.PI, 3.6, 0xc8b0ff, 0.3, { arc: 4, sweep: 3, tilt: 0.2 }); Q.vortex(to, 1.4, 0x8a5aff, 0.6, { n: 24, rise: 6, spin: 10 }); });
+      if (local) S.vib(30);
+      break;
+    }
+    case 'sc_grave': { // 冥界之門：亡靈持續撕咬 2 秒
+      const c = ahead(pos, f, 6);
+      triggerSwing(a.hero);
+      Q.rune(c, 5, 0x6a3ab0, 2.4, 2);
+      Q.rune(c, 3, 0xc8b0ff, 2.4, -3);
+      Q.beam(c, 2, 8, 0x8a5aff, 2);
+      for (let i = 0; i < 6; i++) S._later(0.2 + i * 0.33, () => {
+        const p = ahead(c, rand(0, 6.28), rand(0.5, 4));
+        Q.comet({ x: c.x, y: S.gy(c.x, c.z) + 3, z: c.z }, p, i % 2 ? 0xc8b0ff : 0x8a5aff, 0.2, { width: 0.6, length: 10, head: 1.2 });
+        Q.smoke(p, 2, 0x2a1a3a, 1.6, 0.6, 0.6);
+        S._damageArea(a, c, 5, b * 1.6);
+      });
+      break;
+    }
+    case 'f_dash': { // 迅雷步：瞬間衝刺 + 一拳爆開
+      const from = at(pos);
+      const to = at(moveForward(S, a, 6));
+      Q.comet(from, to, 0xffd08a, 0.12, { width: 1, length: 12, head: 1.4 });
+      Q.lightning(to, 0xffd08a, 6);
+      S._later(0.12, () => {
+        triggerSwing(a.hero);
+        const hit = ahead(to, f, 1.5);
+        Q.punch(hit, 0xffffff); Q.flash(hit, 4, 0xffb35a, 0.3, 1); Q.shock(hit, 3.5, 0xff8a3a, 0.35);
+        S._damageArea(a, hit, 3.5, b * 4);
+      });
+      if (local) S.vib(30);
+      break;
+    }
+    case 'f_aura': { // 鬥氣爆發：6 秒攻速 ×2 + 衝擊
+      a.demonTime = 6;
+      Q.beam(pos, 1.4, 10, 0xff6a2a, 0.8);
+      Q.vortex(pos, 1.8, 0xff8a3a, 1.4, { n: 60, rise: 8, spin: 12, follow: a });
+      Q.shock(pos, 5, 0xffd08a, 0.5);
+      Q.flash(pos, 5, 0xff8a3a, 0.4, 1);
+      S._damageArea(a, pos, 5, b * 3);
+      if (local) { S.vib([30, 30, 60]); S.shake = Math.max(S.shake, 0.3); }
       break;
     }
     default:
