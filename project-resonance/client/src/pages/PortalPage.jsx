@@ -1,0 +1,37 @@
+import { fmt } from '../utils/format.js';
+import { setColor } from '../components/Icons.jsx';
+
+/** 傳送師·露娜：選擇狩獵地圖 */
+export default function PortalPage({ player, config, onGo }) {
+  const u = player.nextUnlock;
+  return (
+    <div className="space-y-1.5 p-3">
+      <p className="text-xs text-white/45">選一張地圖出發狩獵。新地圖要先做出上一區魔物的武器＋3 個部位，且戰力達標。</p>
+      {config.maps.map((m) => {
+        const set = config.sets[m.id];
+        const open = m.id <= player.maxMap;
+        const next = m.id === player.maxMap + 1;
+        const here = !player.inTown && player.mapId === m.id;
+        return (
+          <div key={m.id} className={`flex items-center gap-3 rounded-xl border p-2.5 ${open ? 'border-edge bg-panel' : 'border-white/5 bg-white/[.02] opacity-60'}`}>
+            <span className="num grid size-9 place-items-center rounded-lg bg-white/5 text-sm font-bold" style={{ color: setColor(m.id) }}>{m.id + 1}</span>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold">{m.name} <span className="text-xs font-normal" style={{ color: setColor(m.id) }}>· {open || next ? set.monster : '？？？'}</span></div>
+              <div className="num text-[11px] text-white/45">怪物血量 {fmt(m.monsterHp)} · 建議戰力 {fmt(m.requiredCP)}</div>
+            </div>
+            {here ? (
+              <span className="text-xs text-emerald-300">目前在這</span>
+            ) : open ? (
+              <button onClick={() => onGo(m.id)} className="rounded-xl bg-gold px-4 py-2 text-sm font-bold text-ink active:scale-95">傳送</button>
+            ) : next ? (
+              <button onClick={() => onGo(m.id)} className="rounded-xl border border-gold/50 px-3 py-2 text-xs text-gold active:scale-95">挑戰解鎖</button>
+            ) : (
+              <span className="text-xs text-white/30">🔒</span>
+            )}
+          </div>
+        );
+      })}
+      {u && !u.ok && <p className="pt-1 text-center text-[11px] text-white/35">提示：在地圖上方也能看到下一區還缺什麼條件</p>}
+    </div>
+  );
+}
