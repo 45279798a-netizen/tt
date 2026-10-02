@@ -14,7 +14,7 @@ export default function PetPage({ player, config, onPet }) {
         <span className="text-4xl">🥚</span>
         <div className="flex-1 text-xs text-white/60">
           <div className="text-base font-bold text-white">寵物蛋 × {player.eggs || 0}</div>
-          世界王（第一名必得、其他人 35%）、首領突襲（每人 1 顆）、魔物潮（擊殺 150 以上）會掉
+          巨大首領（前 3 名必得）、首領突襲（每人 1 顆）、魔物潮（擊殺 150 以上）、試煉之塔（每 10 層）會掉
         </div>
         <div className="flex flex-col gap-1.5">
           <button onClick={() => onPet('petBuy')} disabled={player.gold < player.eggPrice} className="num rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold disabled:opacity-30">買蛋 💰{fmt(player.eggPrice)}</button>
@@ -29,7 +29,7 @@ export default function PetPage({ player, config, onPet }) {
         </div>
       )}
       <p className="text-[11px] text-white/45">出戰中的寵物會跟在你身邊並提供加成；重複孵到同一隻會升星（每星加成 +20%，最多 {config.petMaxStar} 星）；餵養可升到 Lv.{config.petMaxLv}。</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {pets.map((d) => {
           const own = player.pets?.[d.id];
           const lv = own?.lv ?? 1;

@@ -2,7 +2,7 @@ import { fmt } from '../utils/format.js';
 import { setColor } from '../components/Icons.jsx';
 
 /** 傳送師·露娜：選擇狩獵地圖 */
-export default function PortalPage({ player, config, onGo, onField, onBoss }) {
+export default function PortalPage({ player, config, onGo, onField, onBoss, onTower }) {
   const u = player.nextUnlock;
   return (
     <div className="space-y-1.5 p-3">
@@ -24,6 +24,15 @@ export default function PortalPage({ player, config, onGo, onField, onBoss }) {
         </div>
         {player.inBoss ? <span className="text-xs text-emerald-300">目前在這</span>
           : <button disabled={!player.worldBoss?.alive} onClick={onBoss} className="rounded-xl bg-red-500 px-4 py-2 text-sm font-bold active:scale-95 disabled:opacity-40">前往</button>}
+      </div>
+      <div className="flex items-center gap-3 rounded-xl border border-sky-400/40 bg-sky-500/10 p-2.5">
+        <span className="grid size-9 place-items-center rounded-lg bg-white/5 text-lg">🗼</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-bold">試煉之塔 <span className="text-xs font-normal text-sky-200">· 單人爬塔 · 最高 {player.tower.best} 層</span></div>
+          <div className="text-[11px] text-white/45">60 秒打倒全部怪 + 守衛就上一層；每 5 層 +1 天賦點</div>
+        </div>
+        {player.inTower ? <span className="text-xs text-emerald-300">目前在這</span>
+          : <button disabled={player.tower.done} onClick={onTower} className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-bold active:scale-95 disabled:opacity-40">挑戰</button>}
       </div>
       {config.maps.map((m) => {
         const set = config.sets[m.id];

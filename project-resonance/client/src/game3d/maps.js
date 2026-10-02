@@ -436,6 +436,35 @@ export const MAP_DEFS = {
     mob: { shape: 'spirit', color: '#b98cff' },
   },
 
+  // ── 試煉之塔（單人挑戰，每層一個圓形擂台）────────
+  tower: {
+    name: '試煉之塔',
+    R: 34,
+    sky: '#0e1a33', fog: ['#16284a', 30, 75],
+    hemi: ['#cfe6ff', '#14203a', 1.4], sun: ['#e0f0ff', 1.6],
+    ground: { a: '#2e3c58', b: '#364766', c: '#283450', path: '#6a86b0', bank: '#222c44', edge: '#18203a' },
+    edgeRise: 0.6,
+    spawn: { x: 0, z: 0 },
+    arena: { x: 0, z: 0, r: 16 },
+    plaza: { x: 0, z: 0, r: 17, color: '#40557a' },
+    hills: [],
+    paths: [],
+    rivers: [], lakes: [], bridges: [], camps: [],
+    scatter: [
+      { type: 'obsidian', n: 60, band: [22, 50], collide: 0.8 },
+      { type: 'rock', n: 30, band: [22, 50], collide: 0.9 },
+    ],
+    landmarks: [
+      { type: 'pillarRing', x: 0, z: 0, s: 2, collide: 0 },
+      { type: 'spire', x: -22, z: -14, s: 1.1, collide: 3 },
+      { type: 'spire', x: 22, z: -14, s: 1.1, collide: 3 },
+      { type: 'spire', x: 0, z: 24, s: 1.1, collide: 3 },
+      { type: 'banner', x: -5, z: 19, s: 1, color: '#6cc8ff' }, { type: 'banner', x: 5, z: 19, s: 1, color: '#6cc8ff' },
+    ],
+    ambient: 'spores',
+    mob: { shape: 'spirit', color: '#6cc8ff' },
+  },
+
   // ── 緣起村（和平區） ──────────────────────
   // ── 莊園（每個人自己的，peaceful）─────────────
   manor: {

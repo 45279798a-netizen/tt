@@ -6,6 +6,7 @@
 //   others   顯示其他玩家（含 AI）的技能特效
 //   dmgNum   顯示傷害數字
 //   meter    左下角顯示 FPS
+//   cam      視角距離倍率（0.75 近 ～ 1.5 遠）
 const KEY = 'resonance.settings';
 const mobile = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
@@ -17,6 +18,7 @@ export const DEFAULTS = {
   others: true,
   dmgNum: true,
   meter: false,
+  cam: 1,
 };
 
 /** 一鍵套用的組合 */

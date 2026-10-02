@@ -35,14 +35,26 @@ function GearTab({ player, config, onEquip, onLock, onDismantle }) {
   const inst = player.inv.find((x) => x.uid === sel);
   const canBreak = (it) => !worn.has(it.uid) && !it.lock && it.base !== 'starter_weapon';
 
-  const bulk = (maxGrade) => {
-    const list = player.inv.filter((it) => canBreak(it) && it.grade <= maxGrade);
-    if (!list.length) return;
-    setConfirm({
-      uids: list.map((x) => x.uid),
-      essence: list.reduce((n, x) => n + x.yield.essence, 0),
-      text: `分解 ${list.length} 件${maxGrade === 0 ? '普通' : '普通 + 精良'}裝備（穿著、上鎖的不會動）`,
-    });
+  const [multi, setMulti] = useState(null); // 多選模式：Set<uid>
+  const ask = (list, text) => {
+    if (!list.length) { setConfirm({ uids: [], essence: 0, text: '沒有符合條件的裝備（穿著、上鎖的不會動）' }); return; }
+    setConfirm({ uids: list.map((x) => x.uid), essence: list.reduce((n, x) => n + x.yield.essence, 0), text, warn: list.some((x) => x.grade >= 3) });
+  };
+  const G = config.grades;
+  const bulk = (maxGrade) => ask(player.inv.filter((it) => canBreak(it) && it.grade <= maxGrade),
+    `分解 ${G.slice(0, maxGrade + 1).map((g) => g.name).join('、')} 裝備（穿著、上鎖的不會動）`);
+  const BULKS = [
+    ['普通', () => bulk(0)], ['≤精良', () => bulk(1)], ['≤稀有', () => bulk(2)], ['≤傳說', () => bulk(3)],
+    ['不比身上強的', () => ask(player.inv.filter((it) => canBreak(it) && (it.delta ?? 0) <= 0 && it.grade < 4), '分解所有「不會讓戰力變高」的裝備（星輝不算）')],
+    ['舊地圖的', () => ask(player.inv.filter((it) => canBreak(it) && config.items[it.base].set < player.maxMap), `分解所有比「${config.maps[player.maxMap].name}」低階的裝備`)],
+  ];
+  const pick = (uid) => {
+    if (!multi) { setSel(uid); return; }
+    const it = player.inv.find((x) => x.uid === uid);
+    if (!it || !canBreak(it)) return;
+    const n = new Set(multi);
+    if (n.has(uid)) n.delete(uid); else n.add(uid);
+    setMulti(n);
   };
 
   return (
@@ -62,13 +74,25 @@ function GearTab({ player, config, onEquip, onLock, onDismantle }) {
           ))}
           <span className="ml-auto text-white/35">⚔ 單件戰力 · <span className="text-emerald-400">▲</span> 比身上強</span>
         </div>
-        <GearPicker player={player} config={config} selected={sel} onSelect={setSel} sort={sort}
-          filter={(it) => slot === 'all' || config.items[it.base].slot === slot} />
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/5 pt-2">
-          <span className="text-[11px] text-white/40">一鍵分解：</span>
-          <button onClick={() => bulk(0)} className="rounded-full bg-white/10 px-2.5 py-1 text-[11px]">普通</button>
-          <button onClick={() => bulk(1)} className="rounded-full bg-white/10 px-2.5 py-1 text-[11px]">普通＋精良</button>
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-lg bg-red-500/5 px-2 py-1.5">
+          <span className="text-[11px] text-red-200/70">♻️ 一鍵分解：</span>
+          {BULKS.map(([label, fn]) => (
+            <button key={label} onClick={fn} className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] active:scale-95">{label}</button>
+          ))}
+          <button onClick={() => setMulti(multi ? null : new Set())}
+            className={`ml-auto rounded-full px-3 py-1 text-[11px] font-bold ${multi ? 'bg-red-500 text-white' : 'border border-red-400/50 text-red-200'}`}>
+            {multi ? '取消多選' : '☑ 多選分解'}
+          </button>
         </div>
+        {multi && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-red-400/40 bg-red-950/40 px-2 py-1.5 text-xs">
+            <span className="flex-1">點裝備勾選（穿著 / 上鎖的不能選）：已選 <b>{multi.size}</b> 件</span>
+            <button onClick={() => setMulti(new Set(player.inv.filter((it) => canBreak(it) && (slot === 'all' || config.items[it.base].slot === slot)).map((x) => x.uid)))} className="rounded bg-white/10 px-2 py-1">全選</button>
+            <button disabled={!multi.size} onClick={() => ask(player.inv.filter((x) => multi.has(x.uid)), `分解勾選的 ${multi.size} 件`)} className="rounded bg-red-500 px-3 py-1 font-bold disabled:opacity-30">分解</button>
+          </div>
+        )}
+        <GearPicker player={player} config={config} selected={sel} onSelect={pick} sort={sort} picked={multi}
+          filter={(it) => slot === 'all' || config.items[it.base].slot === slot} />
       </div>
 
       <div className="w-64 shrink-0 overflow-y-auto border-l border-edge p-3">
@@ -102,11 +126,12 @@ function GearTab({ player, config, onEquip, onLock, onDismantle }) {
           <div className="toast-pop w-full max-w-xs rounded-2xl border border-red-400/40 bg-panel p-4 text-center" onClick={(e) => e.stopPropagation()}>
             <div className="font-bold">確定分解？</div>
             <div className="mt-1 text-sm text-white/60">{confirm.text}</div>
-            <div className="mt-1 text-sm">可獲得 <Essence n={confirm.essence} /> 鍛造精華 ＋ 部分素材</div>
+            {confirm.uids.length > 0 && <div className="mt-1 text-sm">{confirm.uids.length} 件 · 可獲得 <Essence n={confirm.essence} /> 鍛造精華 ＋ 部分素材</div>}
+            {confirm.warn && <div className="mt-1 text-xs font-bold text-amber-300">⚠ 裡面有傳說以上的裝備！</div>}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button onClick={() => setConfirm(null)} className="rounded-lg bg-white/10 py-2">取消</button>
-              <button onClick={async () => { await onDismantle(confirm.uids); setConfirm(null); setSel(null); }}
-                className="rounded-lg bg-red-500 py-2 font-bold">分解</button>
+              <button disabled={!confirm.uids.length} onClick={async () => { await onDismantle(confirm.uids); setConfirm(null); setSel(null); setMulti(null); }}
+                className="rounded-lg bg-red-500 py-2 font-bold disabled:opacity-30">分解</button>
             </div>
           </div>
         </div>

@@ -16,6 +16,7 @@ const SYNC_MS = 2000;
  */
 export function useGame() {
   const [player, setPlayer] = useState(null);
+  const actSeq = useRef(0); // 每次動作 +1，用來丟掉過期的同步結果
   const [config, setConfig] = useState(null);
   const [events, setEvents] = useState([]);   // 飄字 / 戰報
   const [error, setError] = useState('');
@@ -101,9 +102,11 @@ export function useGame() {
     const tick = async () => {
       if (stop || document.hidden) return;
       try {
+        const seq = actSeq.current;
         const { player: p, gained } = await api.sync(takeKills()); // 回報這 2 秒真的打倒的怪
         if (stop) return;
-        setPlayer(p);
+        // 同步途中如果做了其他動作（換技能、裝備…），這份資料是舊的 → 不要蓋掉新的
+        if (seq === actSeq.current) setPlayer(p);
         setOnline(true);
         applyGained(gained);
         const now = Date.now();
@@ -122,7 +125,9 @@ export function useGame() {
   // 動作：成功回傳伺服器的 result（例如鍛造出的裝備），失敗回傳 null 並跳錯誤
   const act = useCallback(async (fn) => {
     try {
+      actSeq.current += 1;
       const { player: p, gained, result } = await fn();
+      actSeq.current += 1;
       setPlayer(p);
       applyGained(gained);
       return result ?? true;
@@ -138,6 +143,18 @@ export function useGame() {
     return inst;
   }, [act, pushEvent]);
 
+  const doCraftMany = useCallback(async (base, times) => {
+    const r = await act(() => api.craftMany(base, times));
+    if (r) vibrate([30, 40, 60]);
+    return r;
+  }, [act]);
+  const doCraftMissing = useCallback(async (set) => {
+    const r = await act(() => api.craftMissing(set));
+    if (r) vibrate([30, 40, 60]);
+    return r;
+  }, [act]);
+  const doEnhanceMany = useCallback((uid, times) => act(() => api.enhanceMany(uid, times)).then((r) => { if (r) vibrate(20); return r; }), [act]);
+  const doSynth = useCallback((id, times) => act(() => api.synth(id, times)), [act]);
   const doEquip = useCallback((uid) => act(() => api.equip(uid)), [act]);
   const doEnhance = useCallback((uid) => act(() => api.enhance(uid)).then((r) => { if (r) vibrate(15); return r; }), [act]);
   const doReroll = useCallback((uid) => act(() => api.reroll(uid)), [act]);
@@ -151,6 +168,12 @@ export function useGame() {
   const doGoTown = useCallback(() => act(() => api.goTown()), [act]);
   const doGoField = useCallback(() => act(() => api.goField()), [act]);
   const doGoBoss = useCallback(() => act(() => api.goBoss()), [act]);
+  const doMarketList = useCallback(async (b) => { const r = await act(() => api.marketList(b)); if (r) pushEvent({ type: 'info', text: '🏷️ 上架成功' }); return r; }, [act, pushEvent]);
+  const doMarketCancel = useCallback(async (id) => { const r = await act(() => api.marketCancel(id)); if (r) pushEvent({ type: 'info', text: '已下架，東西退回背包' }); return r; }, [act, pushEvent]);
+  const doMarketBuy = useCallback(async (id) => { const r = await act(() => api.marketBuy(id)); if (r) pushEvent({ type: 'info', text: `🛒 買到 ${r.name}${r.qty > 1 ? ` ×${r.qty}` : ''}` }); return r; }, [act, pushEvent]);
+  const doTowerStart = useCallback(() => act(() => api.towerStart()), [act]);
+  const doTowerClear = useCallback(() => act(() => api.towerClear()), [act]);
+  const doTowerFail = useCallback(() => act(() => api.towerFail()), [act]);
   const doTalent = useCallback((id) => act(() => api.talent(id)).then((r) => { if (r) vibrate(15); return r; }), [act]);
   const doTalentReset = useCallback(() => act(() => api.talentReset()), [act]);
   const doLoadout = useCallback(async (cls, ids) => {
@@ -211,9 +234,9 @@ export function useGame() {
   return {
     player, config, events, error, online, booting, boot, killsPerMin,
     login, register, logout, pushEvent,
-    doCraft, doEquip, doEnhance, doReroll, doDismantle, doLock, doChangeMap, doGoTown, doTravel,
+    doCraft, doCraftMany, doCraftMissing, doEnhanceMany, doSynth, doEquip, doEnhance, doReroll, doDismantle, doLock, doChangeMap, doGoTown, doTravel,
     doBuyMount, doUpgradeMount, doEquipMount, doCraftWing, doUpgradeWing, doEquipWing, doRecruitPartner, doDeployPartner, doUpgradePartner, doTrialStart, doTrialEnd, doRaidStart, doPet, doRebirth, doClaimAdmin, doGoField, doGoBoss,
-    doTalent, doTalentReset, doLoadout, doDailyClaim, doDailyChest, doAchieveClaim,
+    doTalent, doTalentReset, doLoadout, doTowerStart, doTowerClear, doTowerFail, doMarketList, doMarketCancel, doMarketBuy, doDailyClaim, doDailyChest, doAchieveClaim,
   };
 }
 

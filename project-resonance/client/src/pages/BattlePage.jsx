@@ -17,7 +17,7 @@ import { ChallengeMenu, InviteModal, DuelHud, DuelResult } from '../components/D
  * 左上：角色資訊（topLeft）　中上：地圖　右上：選單（topRight）
  * 左下：搖桿　　　　　　　　　　　　　　　右下：技能盤
  */
-export default function BattlePage({ player, config, events, active, killsPerMin = 0, pushEvent, onTrialStart, onTrialEnd, onRaidStart, onChangeMap, onGoTown, onGoBoss, onNpc, topLeft, topRight }) {
+export default function BattlePage({ player, config, events, active, killsPerMin = 0, pushEvent, onTrialStart, onTrialEnd, onRaidStart, onChangeMap, onGoTown, onGoBoss, onTowerStart, onTowerClear, onTowerFail, onNpc, topLeft, topRight }) {
   const wrapRef = useRef(null);
   const overlayRef = useRef(null);
   const sceneRef = useRef(null);
@@ -55,9 +55,14 @@ export default function BattlePage({ player, config, events, active, killsPerMin
   const town = player.inTown;
   const field = !town && !!player.inField; // 緣起獵場：怪物強度 = 自己最遠的地圖
   const altar = !town && !!player.inBoss;  // 深淵祭壇：巨大首領
+  const inTower = !town && !!player.inTower; // 試煉之塔（單人挑戰）
+  const towerFloor = player.tower?.active;
+  const special = altar || inTower;          // 這兩張圖不能換地圖 / 開魔物潮 / 首領突襲
   const tierMap = config.maps[player.mapId];
   const map = useMemo(() => (field ? { ...tierMap, id: 'field', field: true, name: '緣起獵場' }
-    : altar ? { ...tierMap, id: 'boss', bossMap: true, name: '深淵祭壇' } : tierMap), [field, altar, tierMap]);
+    : altar ? { ...tierMap, id: 'boss', bossMap: true, name: '深淵祭壇' }
+    : inTower ? { ...config.maps[towerFloor?.tier ?? 0], id: 'tower', tower: true, name: '試煉之塔', monsterHp: towerFloor?.hp ?? tierMap.monsterHp }
+    : tierMap), [field, altar, inTower, towerFloor?.hp, towerFloor?.tier, tierMap, config.maps]);
   // 莊園：在村莊時可以進自己的或好友的莊園（伺服器上仍算在村莊，沒有戰鬥）
   const [manor, setManor] = useState(manorStore.get());
   useEffect(() => manorStore.subscribe(setManor), []);
@@ -126,6 +131,38 @@ export default function BattlePage({ player, config, events, active, killsPerMin
     }, 500);
     return () => clearInterval(t);
   }, [player.trial, onTrialEnd]);
+
+  // 試煉之塔：樓層交給場景；全部打倒 → 回報伺服器；時間到 → 失敗
+  const [towerResult, setTowerResult] = useState(null);
+  const towerBusy = useRef(false);
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s) return;
+    s.setTower(inTower && towerFloor ? { floor: towerFloor.floor, endsAt: towerFloor.endsAt, count: towerFloor.count, guardMul: towerFloor.guardMul } : null);
+  }, [inTower, towerFloor?.endsAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s) return undefined;
+    s.onTowerClear = async () => {
+      if (towerBusy.current) return;
+      towerBusy.current = true;
+      const r = await onTowerClear?.();
+      towerBusy.current = false;
+      setTowerResult(r ? { ok: true, ...r } : { ok: false });
+    };
+    return () => { s.onTowerClear = null; };
+  }, [onTowerClear]);
+  useEffect(() => {
+    if (!inTower || !towerFloor) return undefined;
+    const t = setInterval(async () => {
+      if (Date.now() < towerFloor.endsAt + 500 || towerBusy.current || sceneRef.current?.tower?.cleared) return;
+      towerBusy.current = true;
+      const r = await onTowerFail?.();
+      towerBusy.current = false;
+      setTowerResult({ ok: false, floor: r?.floor });
+    }, 500);
+    return () => clearInterval(t);
+  }, [inTower, towerFloor, onTowerFail]);
 
   // 首領突襲：伺服器的狀態交給場景（2 秒同步一次血量）
   useEffect(() => { sceneRef.current?.setRaid(player.raid && !player.inTown ? player.raid : null); }, [player.raid?.id, player.raid?.hp, player.inTown, player.mapId]);
@@ -229,7 +266,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
       onEvent: (m) => {
         if (m.t === 'duel_invite') setInvite(m);
         else if (m.t === 'friend_req') setInfo(`👋 ${m.name} 想加你好友，到「好友」接受`);
-        else if (m.t === 'friend_info') setInfo(m.text);
+        else if (m.t === 'friend_info' || m.t === 'market') setInfo(m.text);
         else if (m.t === 'gift') pushEvent?.({ type: 'info', text: `🎁 ${m.from} 發給你：${m.text}${m.note ? `（${m.note}）` : ''}` });
         else if (m.t === 'announce') setInfo(`📢 ${m.from}：${m.text}`);
         else if (m.t === 'duel_info') setInfo(m.text);
@@ -264,7 +301,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
     return () => { if (s()) { s().onFx = null; s().onHit = null; } net.close(); netRef.current = null; };
   }, [player.id]);
 
-  const next = !town && !field && !altar && config.maps[player.mapId + 1];
+  const next = !town && !field && !special && config.maps[player.mapId + 1];
   const u = player.nextUnlock;
   const canAdvance = next && u?.ok;
   const monster = config.sets[player.mapId];
@@ -304,8 +341,8 @@ export default function BattlePage({ player, config, events, active, killsPerMin
               </>
             ) : (
               <>
-                <span className="text-sm font-bold">{field ? '🌾 緣起獵場' : altar ? '👑 深淵祭壇' : map.name}</span>
-                <span className="ml-2 text-[11px] font-bold" style={{ color: setColor(player.mapId) }}>{field ? `強度：${tierMap.name}` : altar ? '巨大首領討伐' : `狩獵：${monster.monster}`}</span>
+                <span className="text-sm font-bold">{field ? '🌾 緣起獵場' : altar ? '👑 深淵祭壇' : inTower ? '🗼 試煉之塔' : map.name}</span>
+                <span className="ml-2 text-[11px] font-bold" style={{ color: setColor(player.mapId) }}>{field ? `強度：${tierMap.name}` : altar ? '巨大首領討伐' : inTower ? `最高 ${player.tower.best} 層` : `狩獵：${monster.monster}`}</span>
                 <span className="num ml-2 text-[11px] text-white/55 short:hidden">{killsPerMin} 殺/分</span>
               </>
             )}
@@ -339,7 +376,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
               <button onClick={() => onGoTown?.()}
                 className="rounded-full bg-emerald-900/70 px-2.5 py-1 text-[11px] font-bold text-emerald-200 backdrop-blur active:scale-95">🏘 回村莊</button>
             )}
-            {!town && !field && !altar && player.mapId > 0 && (
+            {!town && !field && !special && player.mapId > 0 && (
               <button onClick={() => onChangeMap(player.mapId - 1)}
                 className="rounded-full bg-black/45 px-2.5 py-1 text-[11px] text-white/60 backdrop-blur">◀ 上一區</button>
             )}
@@ -360,8 +397,41 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         <div className="pointer-events-auto">{topRight}</div>
       </div>
 
-      {boss && !duel && <BossBar boss={boss} share={player.worldBoss?.myShare ?? 0} eff={Math.max(boss.minMul ?? 0, player.stats.atk / (player.stats.atk + boss.def * boss.defK))} />}
+      {boss && !duel && <BossBar boss={boss} share={player.worldBoss?.myShare ?? 0} eff={Math.max(boss.minMul ?? 0, player.stats.atk / (player.stats.atk + boss.def * (1 - (player.stats.talent?.defIgnore || 0)) * boss.defK))} />}
       {altar && !boss && !duel && <BossBar sleeping next={player.worldBoss?.next} />}
+      {inTower && towerFloor && <TowerHud floor={towerFloor} scene={sceneRef} />}
+      {inTower && !towerFloor && !towerResult && (
+        <div className="pointer-events-auto fixed inset-x-0 top-[104px] z-20 flex justify-center gap-2">
+          <button onClick={onTowerStart} className="rounded-xl bg-sky-500 px-5 py-2 text-sm font-black active:scale-95">🗼 挑戰第 {player.tower.next} 層</button>
+          <button onClick={onGoTown} className="rounded-xl border border-white/25 bg-black/60 px-4 py-2 text-sm active:scale-95">回村莊</button>
+        </div>
+      )}
+      {towerResult && (
+        <Modal onClose={() => setTowerResult(null)}>
+          <div className="text-center">
+            {towerResult.ok ? (
+              <>
+                <div className="text-lg font-black text-sky-200">🗼 第 {towerResult.floor} 層通關！</div>
+                {towerResult.first && (
+                  <div className="mt-3 flex flex-wrap justify-center gap-1.5 text-xs">
+                    <span className="rounded bg-white/10 px-2 py-1">💠 {towerResult.essence}</span>
+                    <span className="rounded bg-white/10 px-2 py-1">💰 {fmt(towerResult.gold)}</span>
+                    {towerResult.wr > 0 && <span className="rounded bg-white/10 px-2 py-1">星輝羽 {towerResult.wr}</span>}
+                    {towerResult.talent > 0 && <span className="rounded bg-amber-400/20 px-2 py-1 font-bold text-amber-200">🌳 天賦點 +{towerResult.talent}</span>}
+                    {towerResult.eggs > 0 && <span className="rounded bg-white/10 px-2 py-1">🥚 ×{towerResult.eggs}</span>}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-lg font-black text-red-200">⌛ 挑戰失敗{towerResult.floor ? `（第 ${towerResult.floor} 層）` : ''}</div>
+            )}
+            <div className="mt-4 flex justify-center gap-2">
+              <button onClick={() => { setTowerResult(null); onGoTown?.(); }} className="rounded-lg border border-white/20 px-4 py-2 text-sm">回村莊</button>
+              {!player.tower.done && <button onClick={async () => { setTowerResult(null); await onTowerStart?.(); }} className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-bold">{towerResult.ok ? `下一層（${player.tower.next}）` : '再試一次'}</button>}
+            </div>
+          </div>
+        </Modal>
+      )}
       {player.trial && !player.inTown && <TrialHud trial={player.trial} />}
       {town && !inManor && (
         <button onClick={() => enterManor(player.id)}
@@ -377,7 +447,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         </div>
       )}
       {player.raid && !player.inTown && !duel && <BossBar boss={player.raid} share={0} raid />}
-      {!town && !field && !altar && !duel && !player.raid && (
+      {!town && !field && !special && !duel && !player.raid && (
         <button onClick={() => setRaidConfirm(true)}
           className="pointer-events-auto fixed left-3 top-[134px] z-20 rounded-xl border border-rose-300/50 bg-rose-950/80 px-3 py-1.5 text-xs font-bold text-rose-100 backdrop-blur active:scale-95">
           🦇 首領突襲{cdLabel(player.raidCd)}
@@ -395,7 +465,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
           </div>
         </Modal>
       )}
-      {!town && !altar && !duel && !player.trial && (
+      {!town && !special && !duel && !player.trial && (
         <button onClick={() => setTrialConfirm(true)}
           className="pointer-events-auto fixed left-3 top-[96px] z-20 rounded-xl border border-violet-300/50 bg-violet-950/80 px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur active:scale-95">
           🌀 魔物潮{cdLabel(player.trialCd)}
@@ -541,6 +611,24 @@ function BossNews({ news, player, onGo, onClose }) {
         <span>{text}</span>
         {canGo && <button onClick={onGo} className="rounded-lg bg-red-500 px-3 py-1 text-xs text-white active:scale-95">前往討伐</button>}
         <button onClick={onClose} className="text-white/40">✕</button>
+      </div>
+    </div>
+  );
+}
+
+/** 試煉之塔：樓層 + 倒數 + 剩幾隻 */
+function TowerHud({ floor, scene }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
+  const left = Math.max(0, Math.ceil((floor.endsAt - now) / 1000));
+  const mobs = scene.current?.mobs.filter((m) => m.tower && m.alive) ?? [];
+  const guard = mobs.find((m) => m.elite);
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-[104px] z-20 grid place-items-center">
+      <div className="flex items-center gap-4 rounded-2xl border border-sky-300/50 bg-sky-950/80 px-5 py-2 backdrop-blur" style={{ boxShadow: '0 0 20px rgba(108,200,255,.45)' }}>
+        <span className="text-sm font-black text-sky-200">🗼 第 {floor.floor} 層</span>
+        <span className={`num text-2xl font-black ${left <= 10 ? 'text-red-300' : 'text-white'}`}>{left}s</span>
+        <span className="num text-sm font-bold text-gold">剩 {mobs.length} 隻{guard ? ' · 守衛在場' : ''}</span>
       </div>
     </div>
   );
