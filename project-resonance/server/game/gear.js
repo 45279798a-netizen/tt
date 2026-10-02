@@ -76,9 +76,9 @@ export function mainMul(inst) {
   return inst.q * (1 + GRADES[inst.grade].mainBonus) * (1 + inst.lv * ENHANCE_PER_LV);
 }
 
-/** 強化上限：第 N 套 = 10 × (N + 2)，新手武器 10 */
-export function enhanceCap(inst) {
-  return 10 * ((ITEMS[inst.base]?.set ?? -1) + 2);
+/** 強化上限：第 N 套 = 10 × (N + 2)，新手武器 10；每轉職一次 +5 */
+export function enhanceCap(inst, rebirth = 0) {
+  return 10 * ((ITEMS[inst.base]?.set ?? -1) + 2) + rebirth * 5;
 }
 
 /** 第 lv → lv+1 級要幾個精華（強化、分解退還共用） */

@@ -15,8 +15,15 @@ export const WEAPON_TYPES = {
   dual:   { id: 'dual',   name: '雙劍', atkMul: 0.72, dpsMul: 1.39, interval: 0.28, radius: 3.0 },
   // 星杖：遠程魔法，第四章（烈陽聖域）起才做得出來
   staff:  { id: 'staff',  name: '星杖', atkMul: 0.92, dpsMul: 1.08, interval: 0.6,  radius: 7.0, fromSet: 3 },
+  // 長槍：中距離直線穿刺、雷龍系；長弓：遠程射手、風系（第一區就做得出來）
+  spear:  { id: 'spear',  name: '長槍', atkMul: 0.86, dpsMul: 1.163, interval: 0.55, radius: 5.2 },
+  bow:    { id: 'bow',    name: '長弓', atkMul: 0.9,  dpsMul: 1.111, interval: 0.55, radius: 9.0 },
 };
 const STAFF_NAMES = { 3: '烈陽星杖', 4: '幽沼星杖', 5: '星界星杖' };
+const EXTRA_NAMES = {
+  spear: ['翠刺長槍', '熔岩龍槍', '霜牙冰槍', '日輪聖槍', '幽沼魔槍', '星界天槍'],
+  bow: ['翠羽長弓', '炎心火弓', '霜語冰弓', '烈陽金弓', '幽影魔弓', '星辰神弓'],
+};
 export const SLOT_LABEL = { weapon: '武器', helm: '頭盔', armor: '胸甲', gloves: '護手', boots: '護腿' };
 
 const MONSTERS = [
@@ -70,11 +77,11 @@ MONSTERS.forEach((m, i) => {
   for (const [slot, p] of Object.entries(PIECES)) {
     if (slot === 'weapon') {
       // 同一隻魔物可以做三種武器（id：大劍沿用舊的 s0_weapon，存檔相容）
-      ['great', 'katana', 'dual', 'staff'].forEach((wt, j) => {
+      ['great', 'katana', 'dual', 'staff', 'spear', 'bow'].forEach((wt, j) => {
         if (i < (WEAPON_TYPES[wt].fromSet ?? 0)) return; // 星杖：第四章起
         const id = wt === 'great' ? `s${i}_weapon` : `s${i}_${wt}`;
         ITEMS[id] = {
-          id, slot, wtype: wt, set: i, name: wt === 'staff' ? STAFF_NAMES[i] ?? `星杖·${i + 1}` : m.weapon[j],
+          id, slot, wtype: wt, set: i, name: wt === 'staff' ? STAFF_NAMES[i] ?? `星杖·${i + 1}` : EXTRA_NAMES[wt]?.[i] ?? m.weapon[j],
           atk: p.atk * scale * WEAPON_TYPES[wt].atkMul, def: 0, hp: 0,
           recipe: recipe(p), gold: Math.floor(p.gold * g),
         };

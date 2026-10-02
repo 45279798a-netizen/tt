@@ -222,13 +222,13 @@ function startDuel(ca, cb, mode) {
 
 // 各招式在 PvP 的倍率（以「每秒傷害」為單位）、射程、最短間隔（秒）
 // 技能的數值統一定義在 skills.js
-const BASIC_CD = { great: 0.4, katana: 0.3, dual: 0.25, staff: 0.35 };
+const BASIC_CD = { great: 0.4, katana: 0.3, dual: 0.25, staff: 0.35, spear: 0.35, bow: 0.35 };
 function pvpMove(k, wtype) {
   const w = WEAPON_TYPES[wtype] ?? WEAPON_TYPES.great;
   if (k === 'atk') return { mult: w.interval, range: w.radius + (wtype === 'katana' ? 3 : 1.5), gap: w.interval * 0.45 };
   if (k === 'basic') { // 強力普攻可以狂點：三職業狂點都 ≈ 每秒 2 秒份（冷卻跟前端 WEAPON_STYLE 一致）
     const cd = BASIC_CD[wtype] ?? 0.4;
-    return { mult: cd * 2, range: wtype === 'katana' ? 9 : wtype === 'staff' ? 11 : 6, gap: cd * 0.85 };
+    return { mult: cd * 2, range: { katana: 9, staff: 11, spear: 8, bow: 11 }[wtype] ?? 6, gap: cd * 0.85 };
   }
   const sk = SKILLS[k];
   if (!sk || sk.cls !== wtype) return null; // 不是自己職業的技能 → 不算

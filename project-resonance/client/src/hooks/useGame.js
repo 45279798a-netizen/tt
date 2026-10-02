@@ -157,12 +157,26 @@ export function useGame() {
   const doRaidStart = useCallback(() => act(() => api.raidStart()), [act]);
   const doPet = useCallback((kind, id) => act(() => api[kind](id)), [act]);
   const doTrialEnd = useCallback(() => act(() => api.trialEnd()), [act]);
+  const doRebirth = useCallback(async () => {
+    const r = await act(() => api.rebirth());
+    if (r) {
+      vibrate([60, 40, 60, 40, 160]);
+      pushEvent({ type: 'info', text: `🌟 第 ${r.turn} 轉完成！成為「${r.title}」` });
+      window.dispatchEvent(new CustomEvent('resonance:rebirth', { detail: r })); // 3D 場景播轉職儀式
+    }
+    return r;
+  }, [act, pushEvent]);
+  const doClaimAdmin = useCallback(async (key) => {
+    const r = await act(() => api.adminClaim(key));
+    if (r) pushEvent({ type: 'info', text: '🛡 你已成為管理員，右上角多了「管理」按鈕' });
+    return r;
+  }, [act, pushEvent]);
 
   return {
     player, config, events, error, online, booting, killsPerMin,
     login, register, logout, pushEvent,
     doCraft, doEquip, doEnhance, doReroll, doDismantle, doLock, doChangeMap, doGoTown, doTravel,
-    doBuyMount, doUpgradeMount, doEquipMount, doCraftWing, doUpgradeWing, doEquipWing, doRecruitPartner, doDeployPartner, doUpgradePartner, doTrialStart, doTrialEnd, doRaidStart, doPet,
+    doBuyMount, doUpgradeMount, doEquipMount, doCraftWing, doUpgradeWing, doEquipWing, doRecruitPartner, doDeployPartner, doUpgradePartner, doTrialStart, doTrialEnd, doRaidStart, doPet, doRebirth, doClaimAdmin,
   };
 }
 

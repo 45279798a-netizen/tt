@@ -15,5 +15,6 @@ export const NPCS = [
   { id: 'portal', name: '傳送師·露娜', icon: '✨', x: 9, z: -5.5, look: { weapon: 's2_katana', helm: 's2_helm', armor: 's2_armor', gloves: 's2_gloves', boots: 's2_boots' } },
   { id: 'board', name: '冒險者告示板', icon: '📜', x: 0, z: -13.5, look: null },
   { id: 'tavern', name: '酒館老闆·大熊', icon: '🍺', x: -8.6, z: 5.6, look: { weapon: 's1_weapon', helm: null, armor: 's1_armor', gloves: 's1_gloves', boots: 's1_boots' } },
+  { id: 'rebirth', name: '轉職導師·艾琳', icon: '🌟', x: 0, z: -29, look: { weapon: 's5_staff', helm: 's5_helm', armor: 's5_armor', gloves: 's5_gloves', boots: 's5_boots' } },
   { id: 'stable', name: '馬廄·阿蹄', icon: '🐎', x: 9.5, z: 4.5, look: { weapon: 's0_katana', helm: null, armor: 's0_armor', gloves: 's0_gloves', boots: 's0_boots' } },
 ];

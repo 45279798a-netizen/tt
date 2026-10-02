@@ -1142,6 +1142,114 @@ const LANDMARKS = {
     chimney.position.set(1.4, 4.6, -0.8);
     g.add(body, roof, door, chimney);
   },
+  // 村莊北邊：轉職殿堂（白石階梯平台 + 六根石柱 + 圓頂 + 漂浮的轉職水晶 + 地上發光法陣）
+  temple(g) {
+    const stone = lam('#e8e2d4'), dark = lam('#b9b0a0'), gold = lam('#f5c04a', { emissive: '#5a4000' });
+    for (let i = 0; i < 3; i++) {
+      const step = new THREE.Mesh(new THREE.CylinderGeometry(6.2 - i * 0.8, 6.4 - i * 0.8, 0.35, 8), i % 2 ? dark : stone);
+      step.position.y = 0.17 + i * 0.35;
+      g.add(step);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 5, 10), stone);
+      col.position.set(Math.cos(a) * 4, 3.55, Math.sin(a) * 4);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 1), gold);
+      cap.position.set(col.position.x, 6.1, col.position.z);
+      g.add(col, cap);
+    }
+    const ringTop = new THREE.Mesh(new THREE.TorusGeometry(4, 0.3, 6, 24), stone);
+    ringTop.rotation.x = Math.PI / 2; ringTop.position.y = 6.3;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(4.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), lam('#7fa8d8'));
+    dome.position.y = 6.3; dome.scale.y = 0.55;
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.6, 6), gold);
+    spire.position.y = 9.4;
+    const crystalMat = new THREE.MeshBasicMaterial({ color: '#c9a6ff' });
+    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.9, 0), crystalMat);
+    crystal.scale.set(0.8, 1.5, 0.8);
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 12), new THREE.MeshBasicMaterial({ color: '#c9a6ff', transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const circle = new THREE.Mesh(new THREE.RingGeometry(2.4, 2.8, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#d8c4ff', transparent: true, opacity: 0.7 }));
+    circle.position.y = 1.07;
+    const inner = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.55, 6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.7 }));
+    inner.position.y = 1.08;
+    g.add(ringTop, dome, spire, crystal, glow, circle, inner);
+    return {
+      // 石柱要擋路，中間可以走進去
+      obstacles: Array.from({ length: 6 }, (_, i) => {
+        const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+        return { x: g.position.x + Math.cos(a) * 4, z: g.position.z + Math.sin(a) * 4, r: 0.6 };
+      }),
+      anim: (t) => {
+        crystal.position.y = 3.4 + Math.sin(t * 1.5) * 0.3;
+        glow.position.y = crystal.position.y;
+        crystal.rotation.y = t * 0.8;
+        glow.scale.setScalar(1 + Math.sin(t * 3) * 0.1);
+        crystalMat.color.setHSL(0.75 + Math.sin(t * 0.5) * 0.08, 0.9, 0.78);
+        circle.rotation.y = t * 0.3; inner.rotation.y = -t * 0.5;
+      },
+    };
+  },
+  // 市集攤位：木桌 + 條紋布棚 + 貨物
+  stall(g, w, l) {
+    const k = Math.abs(Math.round(l.x * 3 + l.z * 5)) % 4;
+    const cloth = ['#d9534f', '#3a8fd9', '#e6b422', '#5cb85c'][k];
+    const wood = lam('#8a5a32');
+    const table = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 1.3), wood);
+    table.position.y = 0.95;
+    const front = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.85, 0.1), wood);
+    front.position.set(0, 0.45, 0.6);
+    g.add(table, front);
+    for (const [x, z] of [[-1.2, -0.55], [1.2, -0.55], [-1.2, 0.55], [1.2, 0.55]]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.6, 0.12), wood);
+      post.position.set(x, 1.3, z);
+      g.add(post);
+    }
+    for (let i = 0; i < 4; i++) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, 1.7), lam(i % 2 ? '#f6f0e4' : cloth));
+      stripe.position.set(-1.08 + i * 0.72, 2.65, 0.1);
+      stripe.rotation.x = -0.18;
+      g.add(stripe);
+    }
+    const goods = [['#ff7a5a', 0.22], ['#ffd166', 0.2], ['#7ed957', 0.24], ['#9be7ff', 0.18]];
+    goods.forEach(([c, r], i) => {
+      const m = new THREE.Mesh(i % 2 ? new THREE.SphereGeometry(r, 8, 6) : new THREE.BoxGeometry(r * 2, r * 2, r * 2), lam(c));
+      m.position.set(-0.9 + i * 0.6, 1.05 + r, 0.05);
+      g.add(m);
+    });
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 0.8), lam('#a8743a'));
+    crate.position.set(1.7, 0.35, -0.3);
+    g.add(crate);
+  },
+  // 訓練場木人樁
+  dummy(g) {
+    const wood = lam('#9a6a3a'), straw = lam('#d9b85c');
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.2, 6), wood);
+    post.position.y = 1.1;
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.38, 1, 8), straw);
+    body.position.y = 1.3;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), straw);
+    head.position.y = 2.1;
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.14, 0.14), wood);
+    arm.position.y = 1.6;
+    const target = new THREE.Mesh(new THREE.CircleGeometry(0.22, 12), new THREE.MeshBasicMaterial({ color: '#d0263a' }));
+    target.position.set(0, 1.35, 0.43);
+    g.add(post, body, head, arm, target);
+    return { anim: (t) => { g.rotation.z = Math.sin(t * 1.3 + g.position.x) * 0.03; } };
+  },
+  // 訓練場 / 市集的旗幟
+  banner(g, w, l) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 4.2, 6), lam('#4a3a2a'));
+    pole.position.y = 2.1;
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.6, 6, 1), lam(l.color || '#c9a6ff', { side: THREE.DoubleSide }));
+    flag.position.set(0.62, 3.3, 0);
+    g.add(pole, flag);
+    const pos = flag.geometry.attributes.position;
+    const base = Float32Array.from(pos.array);
+    return { anim: (t) => {
+      for (let i = 0; i < pos.count; i++) pos.setZ(i, Math.sin(t * 4 + base[i * 3] * 3) * 0.12 * (base[i * 3] + 0.6));
+      pos.needsUpdate = true;
+    } };
+  },
   lamp(g) {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 3, 6), lam('#2e2e36'));
     pole.position.y = 1.5;

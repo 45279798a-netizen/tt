@@ -537,14 +537,29 @@ export class QuarksFx {
   }
 
   /** 鳳凰火焰拖尾：火焰團 + 往上竄的火星 + 偶爾一根燃燒羽毛 */
-  fireTrail(pos, y = 1.6, moving = true) {
+  fireTrail(pos, y = 1.6, moving = true, color = 0xff7a2a) {
     this._play({
       startLife: new IntervalValue(0.4, 0.8), startSpeed: new IntervalValue(0.5, 1.5),
-      startSize: new IntervalValue(0.6, 1.2), startColor: new ConstantColor(c4(0xff7a2a)), material: this.mat.glow,
+      startSize: new IntervalValue(0.6, 1.2), startColor: new ConstantColor(c4(color)), material: this.mat.glow,
       shape: new SphereEmitter({ radius: 0.6 }), emissionBursts: burst(moving ? 4 : 2),
-    }, pos, { y, behaviors: [new ApplyForce(UP, new ConstantValue(2)), new SizeOverLife(curve(1, 0.8, 0.4, 0)), new ColorOverLife(new Gradient([[c3(0xfff1a8), 0], [c3(0xff7a2a), 0.4], [c3(0xc0201a), 1]], [[1, 0], [0.8, 0.5], [0, 1]]))] });
+    }, pos, { y, behaviors: [new ApplyForce(UP, new ConstantValue(2)), new SizeOverLife(curve(1, 0.8, 0.4, 0)), new ColorOverLife(new Gradient([[c3(0xfff1a8), 0], [c3(color), 0.4], [c3(0xc0201a), 1]], [[1, 0], [0.8, 0.5], [0, 1]]))] });
     this.embers(pos, moving ? 3 : 1, 0xffb347, 0.6, 1);
     if (Math.random() < 0.15) this.feathers(pos, 1, 0xffb347, y, false);
+  }
+
+  /** 冰霜坤：腳下結霜（貼地冰晶印）+ 冰晶碎片 + 寒氣 */
+  frostTrail(pos, moving = true) {
+    this._play({
+      startLife: new IntervalValue(0.5, 0.9), startSpeed: new IntervalValue(0.6, 2), startSize: new IntervalValue(0.12, 0.26),
+      startColor: new ConstantColor(c4(0xdff6ff)), material: this.mat.flare, startRotation: new IntervalValue(0, Math.PI),
+      shape: new HemisphereEmitter({ radius: 0.5 }), emissionBursts: burst(moving ? 4 : 2),
+    }, pos, { y: 0.2, rotX: -Math.PI / 2, behaviors: [new ApplyForce(DOWN, new ConstantValue(3)), new RotationOverLife(new IntervalValue(-4, 4)), new SizeOverLife(curve(1, 1, 0.7, 0)), new ColorOverLife(hot(0x9be7ff, 0.5))] });
+    this._play({
+      startLife: new IntervalValue(0.6, 1), startSpeed: new IntervalValue(0.2, 0.6), startSize: new IntervalValue(0.6, 1.1),
+      startColor: new ConstantColor(c4(0xcfefff, 0.5)), startRotation: new IntervalValue(0, Math.PI * 2), material: this.mat.smoke,
+      shape: new CircleEmitter({ radius: 0.4 }), emissionBursts: burst(1),
+    }, pos, { y: 0.2, rotX: -Math.PI / 2, behaviors: [new SizeOverLife(curve(0.6, 1, 1.3, 1.5)), new ColorOverLife(inout(0xcfefff, 0.15))] });
+    if (moving && Math.random() < 0.4) this.crack(pos, 0.9, 0x9be7ff, 0.8);
   }
 
   /** 麒麟雷光：蹄下電弧火花 + 青色閃光 */
@@ -737,6 +752,120 @@ export class QuarksFx {
         shape: new CircleEmitter({ radius: 0.8 }), emissionBursts: burst(1),
       }, pos, { y: 0.3, rotX: -Math.PI / 2, behaviors: [new ApplyForce(UP, new ConstantValue(3)), new SizeOverLife(curve(0, 1.2, 0.8, 0)), new RotationOverLife(new ConstantValue(3))] });
     }
+  }
+
+  // ═══ 長槍 / 長弓 ═══════════════════════════
+
+  /** 箭矢：細長彗星拖尾 + 小箭頭星芒，命中點一小團風屑 */
+  arrow(from, to, color = 0x8affc1, life = 0.15, { width = 0.22, head = 0.7, y = 1.1 } = {}) {
+    this.comet(from, to, color, life, { width, length: 9, head, y0: y, y1: y - 0.15 });
+    this.tweens.push({ t: 0, life, fn: (k) => {
+      if (k < 1) return;
+      this._play({
+        startLife: new IntervalValue(0.2, 0.35), startSpeed: new IntervalValue(2, 5), startSize: new IntervalValue(0.12, 0.24),
+        startColor: new ConstantColor(c4(color)), material: this.mat.spark, renderMode: RenderMode.StretchedBillBoard, speedFactor: 0.06,
+        shape: new SphereEmitter({ radius: 0.2 }), emissionBursts: burst(this.lite ? 3 : 5),
+      }, to, { y: 1, behaviors: [new ColorOverLife(hot(color, 0.3))] });
+    } });
+  }
+
+  /** 槍芒：一道筆直的雷光（光帶 + 彗星槍尖 + 尖端爆光 + 沿線電火花） */
+  thrust(origin, angle, length, color = 0x7df9ff, big = false) {
+    const dx = Math.sin(angle), dz = Math.cos(angle);
+    const end = { x: origin.x + dx * length, z: origin.z + dz * length };
+    const from = { x: origin.x + dx * 0.5, z: origin.z + dz * 0.5 };
+    this.streak(from, end, color, big ? 0.26 : 0.16, big ? 0.9 : 0.55);
+    this.comet(from, end, color, big ? 0.1 : 0.08, { width: big ? 0.8 : 0.45, length: 8, head: big ? 1.6 : 1, y0: 1, y1: 1 });
+    this.tweens.push({ t: 0, life: 0.08, fn: (k) => {
+      if (k < 1) return;
+      this.flash(end, big ? 2.4 : 1.3, color, 0.18, 1);
+      this.sparks(end, big ? 8 : 4, color, 7, 0.3, { y: 1 });
+    } });
+  }
+
+  /** 螺旋槍氣：一團高速旋轉的氣旋往前鑽（OrbitOverLife 跟著發射點走）+ 身後雷光拖尾 */
+  drill(origin, angle, length, color = 0x7df9ff, life = 0.8) {
+    const dx = Math.sin(angle), dz = Math.cos(angle);
+    const at = { x: origin.x + dx, z: origin.z + dz };
+    const spin = this._play({
+      duration: life, emissionOverTime: new ConstantValue(this.lite ? 60 : 130), startLife: new IntervalValue(0.25, 0.4),
+      startSpeed: new ConstantValue(0), startSize: new IntervalValue(0.25, 0.5), startColor: new ConstantColor(c4(color)), material: this.mat.glow,
+      shape: new CircleEmitter({ radius: 0.9, thickness: 0.2 }),
+    }, at, { y: 1, local: true, rotY: angle, behaviors: [new OrbitOverLife(new ConstantValue(18), new QV3(0, 0, 1)), new SizeOverLife(curve(1, 0.8, 0.4, 0)), new ColorOverLife(hot(color, 0.4))] });
+    const core = this._play({
+      duration: life, emissionOverTime: new ConstantValue(40), startLife: new ConstantValue(0.1), startSpeed: new ConstantValue(0),
+      startSize: new ConstantValue(2), startColor: new ConstantColor(c4(WHITE)), material: this.mat.flare, startRotation: new IntervalValue(0, Math.PI), shape: new PointEmitter(),
+    }, at, { y: 1 });
+    this.comet(at, { x: origin.x + dx * length, z: origin.z + dz * length }, color, life, { width: 1.2, length: 30, head: 0.1, y0: 1, y1: 1 });
+    this.tweens.push({ t: 0, life, fn: (k) => {
+      const d = 1 + (length - 1) * k;
+      const gy = this.gy(origin.x + dx * d, origin.z + dz * d);
+      for (const ps of [spin, core]) ps.emitter.position.set(origin.x + dx * d, gy + 1, origin.z + dz * d);
+    } });
+  }
+
+  /** 天龍破：一條粗大的雷龍光帶衝過去（Trail），龍頭雷光、沿路電火花 */
+  thunderDragon(origin, angle, length, color = 0x7df9ff, life = 0.5) {
+    const dx = Math.sin(angle), dz = Math.cos(angle);
+    const end = { x: origin.x + dx * length, z: origin.z + dz * length };
+    for (const [c, w, l] of [[color, 3.2, 40], [WHITE, 1.2, 30], [0xffe08a, 0.5, 24]]) {
+      this.comet(origin, end, c, life, { width: w, length: l, head: c === color ? 4 : 0.1, y0: 1.6, y1: 1.4 });
+    }
+    // 第二條較細的龍身，上下錯開，看起來像在扭動
+    this.comet({ ...origin, y: this.gy(origin.x, origin.z) + 3 }, { ...end, y: this.gy(end.x, end.z) + 0.6 }, color, life * 1.1, { width: 1.4, length: 30, head: 1.5 });
+    this.tweens.push({ t: 0, life, fn: (k, dt) => {
+      if (Math.random() < 0.6) {
+        const d = length * k;
+        this.sparks({ x: origin.x + dx * d, z: origin.z + dz * d }, 3, color, 8, 0.35, { y: 1.5 });
+      }
+    } });
+  }
+
+  /** 龍捲風：風之刃繞著往上捲（OrbitOverLife）+ 塵土 */
+  tornado(pos, radius, color = 0x8affc1, life = 1.2) {
+    this.vortex(pos, radius, color, life, { n: 90, rise: 7, spin: 11, size: 0.45 });
+    this._play({
+      duration: life * 0.6, emissionOverTime: new ConstantValue(this.lite ? 30 : 60), startLife: new IntervalValue(0.4, 0.7),
+      startSpeed: new ConstantValue(0), startSize: new IntervalValue(0.3, 0.5), startColor: new ConstantColor(c4(0xffffff)), material: this.mat.spark,
+      renderMode: RenderMode.StretchedBillBoard, speedFactor: 0.08, shape: new CircleEmitter({ radius: radius * 0.8, thickness: 0.2 }),
+    }, pos, { y: 0.3, local: true, rotX: -Math.PI / 2, behaviors: [new OrbitOverLife(new ConstantValue(-13), new QV3(0, 0, 1)), new ApplyForce(new QV3(0, 0, 1), new ConstantValue(14)), new ColorOverLife(hot(color, 0.4))] });
+    this.smoke(pos, 6, 0xc9e8d0, 2.5, 1.2, radius * 0.6);
+  }
+
+  // ═══ 轉職 ════════════════════════════════
+
+  /** 轉職光環（每 0.9 秒呼叫）：腳下淡淡的法陣 + 往上飄的光點，轉數越高光點越多 */
+  rebirthAura(pos, color, n = 1) {
+    if (!this._spend(0.5)) return;
+    this.rune(pos, 1.5 + n * 0.08, color, 1.6, 1.2, 0.06);
+    this._play({
+      startLife: new IntervalValue(0.9, 1.4), startSpeed: new IntervalValue(0.2, 0.6), startSize: new IntervalValue(0.12, 0.22),
+      startColor: new ConstantColor(c4(color)), material: this.mat.glow, shape: new CircleEmitter({ radius: 1.2, thickness: 0.2 }),
+      emissionBursts: burst(this.lite ? n : 1 + n * 2),
+    }, pos, { y: 0.15, rotX: -Math.PI / 2, behaviors: [new ApplyForce(UP, new ConstantValue(1.8)), new SizeOverLife(curve(0.4, 1, 0.8, 0)), new ColorOverLife(inout(color, 0.2))] });
+  }
+
+  /** 轉職儀式：三層大法陣 → 光柱 → 光旋捲上身 → 爆光 + 花瓣 */
+  rebirth(actor, color) {
+    const pos = actor.group.position;
+    this.rune(pos, 7, color, 2.6, 1.5);
+    this.rune(pos, 4.5, 0xffffff, 2.6, -2.5);
+    this.rune(pos, 2.4, 0xffe08a, 2.6, 4);
+    this.converge(pos, 50, color, 6, 0.6, 1.2);
+    this.vortex(pos, 2.4, color, 2.4, { n: 100, rise: 8, spin: 9, follow: actor, size: 0.45 });
+    this.beam(pos, 2, 22, color, 2);
+    this.light(pos, color, 80, 1.6, 30, 3);
+    this.tweens.push({ t: 0, life: 0.9, fn: (k) => {
+      if (k < 1) return;
+      const p = actor.group.position;
+      this.flash(p, 12, color, 0.8, 1.5);
+      this.shock(p, 14, color, 0.8);
+      this.shock(p, 9, 0xffffff, 0.5);
+      this.wall(p, 0.5, 10, 3, color, 0.8);
+      this.sparks(p, 50, 0xffffff, 14, 1, { up: 1.5 });
+      this.petals(p, 40, 0xffe6f5, 9);
+      this.embers(p, 40, color, 5, 2.4);
+    } });
   }
 
   /** 塵土：跑步、上下坐騎時腳下揚起的一小團 */

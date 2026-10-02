@@ -7,6 +7,8 @@
 //   太刀 氣刃 4.2 / 見切 5 / 居合 8 / 櫻花 線 2×6 + 範圍 9
 //   雙劍 鬼人化 攻速×2 / 影分身 3×4 / 迴旋刃 12 / 亂舞 16
 //   星杖 星彈 3.6×5 / 隕星 3.2×5 / 光束 1.5×6 / 審判 星雨 2×10 + 崩落 10
+//   長槍 突刺 0.9×5 / 龍騰 6 / 螺旋 1.5×4 / 天龍 8 + 落雷 1.5×6 + 雷爆 4（≈ 3.0）
+//   長弓 散射 1.8×7 扇形 / 穿雲 7 / 箭雨 1.4×12 + 風爆 3.5 / 千矢 1×30 + 龍捲 8（遠程 ≈ 2.6）
 // 平衡調整（每秒對「一隻怪」的額外傷害，單位 = 秒份）：
 //   大劍 ≈ 2.97、太刀 ≈ 2.95、雙劍 ≈ 3.0（原本影分身每隻只吃 1.6，≈ 2.85）
 //   星杖 ≈ 2.65（原本 ≈ 2.27 明顯最弱；遠程比近戰安全，所以留一點差距）
@@ -28,7 +30,7 @@ function moveForward(S, a, d) {
 
 export function castSkillFx(S, a, id) {
   const pos = a.group.position;
-  const b = S._dps(a);
+  const b = S._dps(a) * (a.skillMul || 1); // 轉職：技能傷害加成
   const local = a.local;
   const f = a.facing;
   const Q = S.qfx; // three.quarks 特效庫（quarksFx.js）
@@ -308,6 +310,152 @@ export function castSkillFx(S, a, id) {
         Q.sparks(c, 40, 0xffffff, 16, 0.8, { up: 1.5 });
         S._damageArea(a, c, 10, b * 10);
         if (local) { S._bigImpact(); S._screenFlash('180,220,255'); }
+      });
+      break;
+    }
+    // ══ 長槍：雷龍、直線貫穿 ═══════════════════
+    case 'sp_thrust': { // 連環突刺：5 段快速突刺，左右微微錯開，最後一槍最亮
+      Q.rune(pos, 2.4, 0x7df9ff, 0.9, 6);
+      for (let i = 0; i < 5; i++) S._later(i * 0.09, () => {
+        triggerSwing(a.hero);
+        const p = at(a.group.position);
+        S._thrust(a, p, a.facing + (i % 2 ? 0.12 : -0.12) * (i < 4 ? 1 : 0), 9, 2.4, b * 0.9, i === 4 ? 0xffffff : 0x7df9ff, i === 4);
+      });
+      if (local) S.vib([10, 10, 10, 10, 30]);
+      break;
+    }
+    case 'sp_leap': { // 龍騰槍：躍起 → 槍插地：雷光炸裂、放射電弧、落雷
+      a.leapT = 0.35;
+      Q.vortex(pos, 1.2, 0x7df9ff, 0.5, { n: 30, rise: 8, spin: 10 });
+      const land = moveForward(S, a, 6);
+      S._later(0.32, () => {
+        triggerSwing(a.hero);
+        Q.lightning(land, 0xbff8ff, 11);
+        Q.flash(land, 6, 0x7df9ff, 0.4, 0.6);
+        Q.light(land, 0x7df9ff, 60, 0.5, 20, 1);
+        Q.shock(land, 6, 0xbff8ff, 0.5);
+        Q.wall(land, 0.5, 5.5, 1.8, 0x7df9ff, 0.45);
+        Q.crack(land, 5.5, 0x7df9ff, 1.4);
+        for (let i = 0; i < 3; i++) { const p = ahead(land, rand(0, Math.PI * 2), rand(2, 4)); S._later(0.08 + i * 0.07, () => Q.lightning(p, 0x7df9ff, 8)); }
+        Q.sparks(land, 24, 0xbff8ff, 11, 0.5, { up: 1.4 });
+        S._damageArea(a, land, 5, b * 6);
+        if (local) { S.shake = Math.max(S.shake, 0.45); S.vib(45); }
+      });
+      break;
+    }
+    case 'sp_drill': { // 螺旋穿雲：擲出高速旋轉的槍氣，0.8 秒鑽 14 公尺，每段都有傷害
+      triggerSwing(a.hero);
+      const o = at(pos), ang = f;
+      Q.converge(ahead(o, ang, 1), 16, 0xbff8ff, 2, 0.25, 1);
+      Q.drill(o, ang, 14, 0x7df9ff, 0.8);
+      for (let i = 0; i < 4; i++) S._later(0.1 + i * 0.2, () => {
+        const p = ahead(o, ang, 1 + i * 3.2);
+        S._damageArea(a, p, 2.6, b * 1.5);
+        Q.shock(p, 2.6, 0x7df9ff, 0.3);
+      });
+      if (local) S.vib([20, 20, 20]);
+      break;
+    }
+    case 'sp_dragon': { // 天龍破：雷陣 + 蓄力 → 雷龍貫穿 16 公尺，沿路落雷，盡頭雷爆
+      const o = at(pos), ang = f;
+      Q.rune(o, 5, 0x7df9ff, 1.2, 3);
+      Q.rune(o, 3, 0xffe08a, 1.2, -4);
+      Q.converge(o, 30, 0xbff8ff, 4, 0.4, 1.2);
+      Q.beam(o, 1, 10, 0x7df9ff, 0.6);
+      S._later(0.4, () => {
+        triggerSwing(a.hero);
+        const p = at(a.group.position);
+        const end = ahead(p, ang, 16);
+        Q.thunderDragon(p, ang, 16, 0x7df9ff, 0.45);
+        S._thrust(a, p, ang, 16, 5, b * 8, 0xbff8ff, true);
+        for (let i = 0; i < 6; i++) S._later(0.08 + i * 0.06, () => {
+          const q = ahead(ahead(p, ang, 3 + i * 2.2), ang + Math.PI / 2, rand(-2, 2));
+          Q.lightning(q, 0x7df9ff, 9);
+          S._damageArea(a, q, 2.5, b * 1.5);
+        });
+        S._later(0.45, () => {
+          Q.flash(end, 9, 0x7df9ff, 0.5, 1);
+          Q.light(end, 0x7df9ff, 70, 0.7, 26, 2);
+          Q.shock(end, 8, 0xbff8ff, 0.6);
+          Q.wall(end, 0.5, 7, 2.2, 0x7df9ff, 0.6);
+          Q.sparks(end, 30, 0xffffff, 13, 0.7, { up: 1.4 });
+          S._damageArea(a, end, 6, b * 4);
+          if (local) { S._bigImpact(); S._screenFlash('170,240,255'); }
+        });
+      });
+      break;
+    }
+
+    // ══ 長弓：風、遠程、箭雨 ═══════════════════
+    case 'b_multi': { // 扇形散射：7 支箭呈 60° 扇形射出
+      triggerSwing(a.hero);
+      Q.flash(ahead(pos, f, 0.8), 1.8, 0x8affc1, 0.2, 1.2);
+      Q.converge(ahead(pos, f, 0.8), 10, 0xc8ffe0, 1.2, 0.18, 1.2);
+      for (let i = 0; i < 7; i++) S._arrowShot(a, f + (i - 3) * 0.17, 11, b * 1.8, i === 3 ? 0xffffff : 0x8affc1, 1.4);
+      if (local) S.vib(20);
+      break;
+    }
+    case 'b_pierce': { // 穿雲箭：蓄力（風陣 + 聚氣）→ 一支巨箭貫穿 20 公尺
+      const o = at(pos);
+      Q.rune(o, 2.6, 0x8affc1, 0.6, -6);
+      Q.converge(ahead(o, f, 1), 24, 0xffffff, 2.6, 0.4, 1.2);
+      Q.vortex(o, 1.4, 0x8affc1, 0.5, { n: 30, rise: 4, spin: 10 });
+      S._later(0.4, () => {
+        triggerSwing(a.hero);
+        const p = at(a.group.position), ang = a.facing;
+        const end = ahead(p, ang, 20);
+        S._arrowShot(a, ang, 20, b * 7, 0xffffff, 2.6);
+        Q.comet(ahead(p, ang, 0.6), end, 0x8affc1, 0.22, { width: 1.6, length: 24, head: 2.4, y0: 1.1, y1: 1.1 });
+        Q.streak(p, end, 0xc8ffe0, 0.4, 1.6);
+        Q.light(ahead(p, ang, 8), 0x8affc1, 45, 0.4, 20);
+        S._later(0.22, () => { Q.flash(end, 4, 0x8affc1, 0.35, 1); Q.shock(end, 4, 0xc8ffe0, 0.4); });
+        if (local) { S.shake = Math.max(S.shake, 0.3); S.vib(50); S._screenFlash('200,255,220'); }
+      });
+      break;
+    }
+    case 'b_rain': { // 箭雨：前方風陣，1.2 秒內 12 支箭從天而降，最後一陣風爆
+      const c = ahead(pos, f, 8);
+      Q.rune(c, 5, 0x8affc1, 1.8, 1.5);
+      triggerSwing(a.hero);
+      Q.comet(at(pos), { x: pos.x + Math.sin(f) * 2, y: S.gy(pos.x, pos.z) + 9, z: pos.z + Math.cos(f) * 2 }, 0xc8ffe0, 0.2, { width: 0.4, head: 1 });
+      for (let i = 0; i < 12; i++) S._later(0.25 + i * 0.08, () => {
+        const ang = rand(0, Math.PI * 2), r = rand(0, 4.5);
+        const p = { x: c.x + Math.cos(ang) * r, z: c.z + Math.sin(ang) * r };
+        const gy = S.gy(p.x, p.z);
+        Q.arrow({ x: p.x - 1.2, y: gy + 9, z: p.z - 0.6 }, { x: p.x, y: gy + 0.2, z: p.z }, i % 3 ? 0x8affc1 : 0xffffff, 0.16);
+        S._later(0.16, () => S._damageArea(a, p, 1.8, b * 1.4));
+      });
+      S._later(1.4, () => {
+        Q.tornado(c, 3, 0x8affc1, 0.9);
+        Q.shock(c, 5.5, 0xc8ffe0, 0.5);
+        S._damageArea(a, c, 5, b * 3.5);
+      });
+      break;
+    }
+    case 'b_storm': { // 千矢星落：三層風陣 + 光柱 → 30 支星矢落下 → 中央龍捲收尾
+      const c = at(pos);
+      Q.rune(c, 9, 0x8affc1, 2.6, 1.2);
+      Q.rune(c, 5.5, 0xffe08a, 2.6, -2.5);
+      Q.rune(c, 2.6, 0xffffff, 2.6, 4);
+      Q.beam(c, 1.2, 16, 0x8affc1, 2);
+      Q.converge(c, 36, 0xc8ffe0, 6, 0.5, 1.2);
+      triggerSwing(a.hero);
+      for (let i = 0; i < 30; i++) S._later(0.3 + i * 0.045, () => {
+        const ang = rand(0, Math.PI * 2), r = rand(1.5, 9);
+        const p = { x: c.x + Math.cos(ang) * r, z: c.z + Math.sin(ang) * r };
+        const gy = S.gy(p.x, p.z);
+        Q.arrow({ x: p.x + rand(-2, 2), y: gy + 11, z: p.z - 1.5 }, { x: p.x, y: gy + 0.2, z: p.z }, [0x8affc1, 0xffe08a, 0xffffff][i % 3], 0.18, { width: 0.3, head: 1 });
+        S._later(0.18, () => { S._damageArea(a, p, 2, b); if (i % 3 === 0) Q.shock(p, 2, 0x8affc1, 0.3); });
+      });
+      S._later(1.8, () => {
+        Q.tornado(c, 4.5, 0x8affc1, 1.4);
+        Q.flash(c, 12, 0xc8ffe0, 0.6, 1.2);
+        Q.light(c, 0x8affc1, 75, 0.9, 30, 2);
+        Q.shock(c, 11, 0x8affc1, 0.7);
+        Q.wall(c, 0.5, 10, 2.8, 0x8affc1, 0.8);
+        Q.petals(c, local ? 30 : 12, 0xc8ffe0, 10);
+        S._damageArea(a, c, 9, b * 8);
+        if (local) { S._bigImpact(); S._screenFlash('200,255,220'); }
       });
       break;
     }

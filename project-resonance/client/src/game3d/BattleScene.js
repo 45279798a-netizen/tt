@@ -39,7 +39,11 @@ export const WEAPON_STYLE = {
   dual: { name: '雙劍', interval: 0.28, radius: 3.0, color: 0xffc2c2, basic: { name: '亂舞', icon: '⚔️', cd: 0.25 } },
   // 星杖：遠程，普攻是射向最近敵人的星彈（範圍爆炸）
   staff: { name: '星杖', interval: 0.6, radius: 7.0, color: 0x9be7ff, basic: { name: '星芒', icon: '✨', cd: 0.35 }, ranged: true, keep: 5 },
+  // 長槍：前方細長直線突刺（雷光）；長弓：射向最近敵人的穿透箭（風）
+  spear: { name: '長槍', interval: 0.55, radius: 5.2, color: 0x7df9ff, basic: { name: '突刺', icon: '🔱', cd: 0.35 }, keep: 3.4 },
+  bow: { name: '長弓', interval: 0.55, radius: 9.0, color: 0x8affc1, basic: { name: '三連射', icon: '🏹', cd: 0.35 }, ranged: true, keep: 6.5 },
 };
+const REBIRTH_COLORS = ['#7ed957', '#6cc8ff', '#c98cff', '#ffd166', '#ff5a7a'].map((c) => new THREE.Color(c).getHex());
 const styleOf = (wtype) => WEAPON_STYLE[wtype] ?? WEAPON_STYLE.great;
 
 const tmpV = new THREE.Vector3();
@@ -315,6 +319,17 @@ export class BattleScene {
   setStats(stats) {
     this.player.atk = stats.atk;
     this.player.dpsMul = stats.atk > 0 ? stats.dps / (stats.atk * 5) : 1;
+    this.player.skillMul = stats.skillMul || 1; // 轉職：技能傷害
+    this.player.cdr = stats.cdr || 0;           // 轉職：技能冷卻縮短
+    this.player.rebirth = stats.rebirth || 0;   // 轉職：腳下光環
+  }
+
+  /** 轉職儀式（three.quarks） */
+  rebirthFx(color) {
+    this.qfx.rebirth(this.player, color);
+    this._number(this.player.group.position, '轉職成功！', 'lvl', 1.2);
+    this._screenFlash('220,190,255');
+    this.shake = Math.max(this.shake, 0.5);
   }
 
   setEquipment(equipped, items) {
@@ -763,6 +778,16 @@ export class BattleScene {
       this.qfx.shock(pos, 5, 0x8ff3ff, 0.5);
       for (let i = 0; i < 3; i++) this.qfx.dragonTrail(pos, 1 + i * 0.6);
     }
+    if (a.riding && a.mount?.def.model === 'wyvern') { // 召喚魔龍：赤色魔法陣 + 火柱 + 火星
+      this.qfx.rune(pos, 4.5, 0xff3b2a, 1.2, -2);
+      this.qfx.beam(pos, 1.3, 9, 0xff5a2a, 0.7);
+      this.qfx.embers(pos, 30, 0xff7a3a, 3, 1.6);
+    }
+    if (a.riding && a.mount?.def.model === 'frostfox') { // 召喚冰霜坤：冰晶魔法陣 + 寒氣
+      this.qfx.rune(pos, 3.5, 0x9be7ff, 1.2, 2);
+      this.qfx.shock(pos, 4.5, 0xbfe6ff, 0.5);
+      for (let i = 0; i < 3; i++) this.qfx.frostTrail(pos);
+    }
     this._ring(pos, 0.4, 3, 0.4, 0xf3e3c0);
     this._glowFlash(pos, 3, a.riding ? 0xfff1c4 : 0xffffff, 0.35, 0.8);
     this.qfx.dust(pos, 0xb89a6a, 6);
@@ -775,7 +800,8 @@ export class BattleScene {
 
   /** basic 是各武器的強力普攻，其他是伺服器定義的技能 */
   _cdOf(id) {
-    return id === 'basic' ? styleOf(this.player.wtype).basic.cd : this.skillDefs[id]?.cd ?? 5;
+    if (id === 'basic') return styleOf(this.player.wtype).basic.cd;
+    return (this.skillDefs[id]?.cd ?? 5) * (1 - (this.player.cdr || 0));
   }
 
   setMap(map) {
@@ -925,7 +951,9 @@ export class BattleScene {
       this._setActorMount(a, r.mount || null);
       const rd = !!r.rd && !!a.mount;
       if (rd !== a.riding) { this._applyRide(a, rd); this._rideFx(a); }
-      const label = `${r.name} <span>Lv.${r.level} · ${styleOf(a.wtype).name}</span>`;
+      a.rebirth = r.rebirth || 0;
+      a.skillMul = r.skillMul || 1;
+      const label = `${r.name} <span>${a.rebirth ? `${a.rebirth}轉 ` : ''}Lv.${r.level} · ${r.title || styleOf(a.wtype).name}</span>`;
       if (a.tag.innerHTML !== label) a.tag.innerHTML = label;
     }
     for (const [id, a] of this.remotes) {
@@ -1107,6 +1135,17 @@ export class BattleScene {
       this._starBolt(a, t, this._dps(a) * st.interval, fever ? 0xffe08a : st.color, 2.2);
       return;
     }
+    if (a.wtype === 'bow') { // 箭：射向最近的敵人，直線穿透
+      const t = this.targetsNear(a, st.radius + 0.5, 1)[0];
+      if (!t) return;
+      const ang = Math.atan2(t.x - pos.x, t.z - pos.z);
+      this._arrowShot(a, ang, st.radius + 1.5, this._dps(a) * st.interval, fever ? 0xffe08a : st.color);
+      return;
+    }
+    if (a.wtype === 'spear') { // 突刺：前方細長直線
+      this._thrust(a, pos, a.facing, st.radius + 0.8, 1.8, this._dps(a) * st.interval, fever ? 0xffe08a : st.color);
+      return;
+    }
     if (a.wtype === 'katana') {
       this._lineSlash(a, pos, a.facing, st.radius + 1.6, 2.2, this._dps(a) * st.interval, fever ? 0xffe08a : st.color, 0.18);
       this._crescent(pos, a.facing, st.radius * 0.8, fever ? 0xffe08a : st.color, 0.16, { arc: 1.6, sweep: 1.2, tilt: 0.3 });
@@ -1130,6 +1169,18 @@ export class BattleScene {
       const ts = this.targetsNear(a, 9, 3);
       ts.forEach((t, i) => this._later(i * 0.05, () => this._starBolt(a, t, b * 0.6, 0xc9f2ff, 2.4)));
       if (!ts.length) this.qfx.flash(pos, 1.5, 0x9be7ff, 0.2, 1.4);
+      return;
+    }
+    if (a.wtype === 'bow') { // 三連射：同時射向最近 3 個敵人（沒怪就往前射）
+      triggerSwing(a.hero);
+      const ts = this.targetsNear(a, 11, 3);
+      if (!ts.length) ts.push({ x: pos.x + Math.sin(a.facing) * 8, z: pos.z + Math.cos(a.facing) * 8 });
+      ts.forEach((t, i) => this._later(i * 0.05, () => this._arrowShot(a, Math.atan2(t.x - pos.x, t.z - pos.z), 11, b * 0.6, 0xc8ffe0)));
+      return;
+    }
+    if (a.wtype === 'spear') { // 強力突刺：更長更粗
+      triggerSwing(a.hero);
+      this._thrust(a, pos, a.facing, 8, 2.4, b * 0.75, 0xbff8ff, true);
       return;
     }
     if (a.wtype === 'katana') { // 居合：前方一道長斬
@@ -1390,6 +1441,35 @@ export class BattleScene {
       this.qfx.sparks(to, 4, color, 5, 0.3);
       this._damageArea(a, to, radius, dmg);
     });
+  }
+
+  /** 長弓：一支穿透箭（直線判定 + 彗星拖尾的箭矢） */
+  _arrowShot(a, ang, length, dmg, color, width = 1.3) {
+    const p = a.group.position;
+    const from = { x: p.x + Math.sin(ang) * 0.6, z: p.z + Math.cos(ang) * 0.6 };
+    const to = { x: p.x + Math.sin(ang) * length, z: p.z + Math.cos(ang) * length };
+    this.qfx.arrow(from, to, color, Math.min(0.2, length / 70));
+    const dx = Math.sin(ang), dz = Math.cos(ang);
+    this._later(0.06, () => {
+      for (const m of this.mobs) {
+        if (!m.alive) continue;
+        const rx = m.group.position.x - from.x, rz = m.group.position.z - from.z;
+        const along = rx * dx + rz * dz;
+        if (along > -0.5 && along < length && Math.abs(rx * dz - rz * dx) < width / 2 + m.radius) this._hit(a, m, dmg);
+      }
+    });
+  }
+
+  /** 長槍：突刺（直線判定 + 雷光槍芒） */
+  _thrust(a, origin, angle, length, width, dmg, color, big = false) {
+    const dx = Math.sin(angle), dz = Math.cos(angle);
+    for (const m of this.mobs) {
+      if (!m.alive) continue;
+      const rx = m.group.position.x - origin.x, rz = m.group.position.z - origin.z;
+      const along = rx * dx + rz * dz;
+      if (along > -0.5 && along < length && Math.abs(rx * dz - rz * dx) < width / 2 + m.radius) this._hit(a, m, dmg);
+    }
+    this.qfx.thrust(origin, angle, length, color, big);
   }
 
   /** 以下特效全部交給 three.quarks（quarksFx.js） */
@@ -1916,6 +1996,10 @@ export class BattleScene {
     }
 
     pos.y = this.gy(pos.x, pos.z);
+    if (a.rebirth > 0) { // 轉職光環：腳下慢慢轉的法陣 + 往上飄的光點
+      a.rebirthT = (a.rebirthT || 0) - dt;
+      if (a.rebirthT <= 0) { a.rebirthT = 0.9; this.qfx.rebirthAura(pos, REBIRTH_COLORS[a.rebirth - 1], a.rebirth); }
+    }
     animateHero(a.hero, this.time, dt, { moving: a.moving, mounted: a.riding });
     if (a.riding) {
       animateMount(a.mount, this.time, dt, { moving: a.moving, speed: a.mountSpeed });
@@ -1923,6 +2007,10 @@ export class BattleScene {
       if ((a.mount.def.model === 'phoenix' || a.mount.def.model === 'qilin') && !a.moving) { // 停著也有火焰 / 電光
         a.idleFx = (a.idleFx || 0) - dt;
         if (a.idleFx <= 0) { a.idleFx = 0.25; if (a.mount.def.model === 'phoenix') this.qfx.fireTrail(pos, 1.9, false); else this.qfx.lightningTrail(pos, false); }
+      }
+      if ((a.mount.def.model === 'wyvern' || a.mount.def.model === 'frostfox') && !a.moving) { // 停著：龍口餘燼 / 身邊寒氣
+        a.idleFx = (a.idleFx || 0) - dt;
+        if (a.idleFx <= 0) { a.idleFx = 0.3; if (a.mount.def.model === 'wyvern') this.qfx.embers(pos, 2, 0xff5a2a, 1.2, 1.2); else this.qfx.frostTrail(pos, false); }
       }
       if (a.mount.def.model === 'dragon' && !a.moving) { // 神龍停著：龍珠周圍緩緩飄星光
         a.idleFx = (a.idleFx || 0) - dt;
@@ -1948,6 +2036,12 @@ export class BattleScene {
             const tail = { x: pos.x - Math.sin(a.facing) * 3.5, z: pos.z - Math.cos(a.facing) * 3.5 };
             this.qfx.dragonTrail(tail, 1.4);
             a.trailT = 0.06;
+          } else if (a.mount.def.model === 'wyvern') { // 赤翼魔龍：身後拖著暗紅火焰與火星
+            this.qfx.fireTrail({ x: pos.x - Math.sin(a.facing) * 2.2, z: pos.z - Math.cos(a.facing) * 2.2 }, 2, true, 0xff3b2a);
+            a.trailT = 0.07;
+          } else if (a.mount.def.model === 'frostfox') { // 冰霜坤：腳下結霜、冰晶飛散
+            this.qfx.frostTrail(back);
+            a.trailT = 0.08;
           } else if (a.mount.def.model === 'horse') this.qfx.dust(back, 0xb89a6a, 1);
           else this._sparks(back, 2, c, 1.5, 0.6, { y: 0.2, up: 0.8 });
         }

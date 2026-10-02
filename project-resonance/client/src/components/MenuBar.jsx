@@ -8,18 +8,19 @@ export const MENUS = [
 ];
 
 // 村莊 NPC 打開的面板
-export const NPC_PANELS = { smith: '🔨 鍛造師·鐵錘', portal: '✨ 傳送師·露娜', board: '📜 冒險者告示板', stable: '🐎 馬廄·阿蹄', tavern: '🍺 酒館', manor: '🏡 莊園' };
+export const ADMIN_MENU = { id: 'admin', label: '管理', icon: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM9 12l2 2 4-4' };
+export const NPC_PANELS = { rebirth: '🌟 轉職殿堂·艾琳', admin: '🛡 管理員', smith: '🔨 鍛造師·鐵錘', portal: '✨ 傳送師·露娜', board: '📜 冒險者告示板', stable: '🐎 馬廄·阿蹄', tavern: '🍺 酒館', manor: '🏡 莊園' };
 
 const FS_ICON = 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5';
 
 /** 右上角選單：像手遊一樣一排圓形按鈕，點開側邊面板 */
-export default function MenuBar({ open, onOpen, pwa, badges = {} }) {
+export default function MenuBar({ open, onOpen, pwa, badges = {}, admin = false }) {
   return (
     <div className="flex items-center gap-1.5">
       {pwa.canFullscreen && !pwa.fullscreen && (
         <RoundBtn label="全螢幕" icon={FS_ICON} onClick={pwa.enterFullscreen} />
       )}
-      {MENUS.map((m) => (
+      {[...MENUS, ...(admin ? [ADMIN_MENU] : [])].map((m) => (
         <RoundBtn key={m.id} label={m.label} icon={m.icon} active={open === m.id} badge={badges[m.id]} onClick={() => onOpen(m.id)} />
       ))}
     </div>

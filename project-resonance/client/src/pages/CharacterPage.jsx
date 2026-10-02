@@ -6,7 +6,7 @@ import { GearTile, GearDetail, mainStatText } from '../components/Gear.jsx';
 import { WEAPON_STYLE } from '../game3d/BattleScene.js';
 
 /** 角色頁：左邊 3D 模型，右邊「裝備 / 技能 / 數值」 */
-export default function CharacterPage({ player, config, onEquip, onLogout, onCraftWing, onUpgradeWing, onEquipWing }) {
+export default function CharacterPage({ player, config, onEquip, onLogout, onClaimAdmin, onCraftWing, onUpgradeWing, onEquipWing }) {
   const [tab, setTab] = useState('gear');
   const [previewWing, setPreviewWing] = useState(null); // 翅膀頁點選時先預覽
   const wingId = tab === 'wings' && previewWing ? previewWing : player.wing;
@@ -39,7 +39,7 @@ export default function CharacterPage({ player, config, onEquip, onLogout, onCra
           {tab === 'skills' && <SkillsTab player={player} config={config} />}
           {tab === 'wings' && <WingsTab player={player} config={config} preview={wingId} onPreview={setPreviewWing}
             onCraft={onCraftWing} onUpgrade={onUpgradeWing} onEquip={onEquipWing} />}
-          {tab === 'stats' && <StatsTab player={player} config={config} onLogout={onLogout} />}
+          {tab === 'stats' && <StatsTab player={player} config={config} onLogout={onLogout} onClaimAdmin={onClaimAdmin} />}
         </div>
       </div>
     </div>
@@ -147,7 +147,8 @@ function SkillsTab({ player, config }) {
   );
 }
 
-function StatsTab({ player, config, onLogout }) {
+function StatsTab({ player, config, onLogout, onClaimAdmin }) {
+  const [key, setKey] = useState('');
   const map = config.maps[player.mapId];
   const st = player.stats;
   const pct = (v) => `${(v * 100).toFixed(1)}%`;
@@ -157,6 +158,7 @@ function StatsTab({ player, config, onLogout }) {
     ['金幣獲取', `+${pct(st.goldPct)}`], ['經驗獲取', `+${pct(st.expPct)}`], ['素材掉落', `+${pct(st.dropPct)}`],
     ['掛機地點', map.name], ['擊殺/秒', fmtRate(player.rates.killsPerSec)], ['金幣/秒', fmt(player.rates.goldPerSec)],
     ['累積擊殺', fmt(player.totalKills)], ['PvP', `${player.pvp.w} 勝 ${player.pvp.l} 敗`],
+    ['轉職', player.rebirth ? `${player.rebirth} 轉 · ${player.title}` : '未轉職'], ['技能傷害', `+${pct((st.skillMul || 1) - 1)}`],
   ];
   return (
     <div className="space-y-3">
@@ -167,6 +169,16 @@ function StatsTab({ player, config, onLogout }) {
           </div>
         ))}
       </section>
+      {!player.admin && (
+        <details className="rounded-xl bg-white/5 px-3 py-2 text-xs">
+          <summary className="cursor-pointer text-white/50">🛡 管理員</summary>
+          <p className="mt-1 text-white/40">輸入伺服器視窗顯示的「管理員密鑰」（也存在 server/data/admin.json）</p>
+          <div className="mt-1.5 flex gap-2">
+            <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="管理員密鑰" className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 outline-none" />
+            <button onClick={() => onClaimAdmin?.(key)} className="rounded-lg bg-gold px-3 font-bold text-ink">確認</button>
+          </div>
+        </details>
+      )}
       <button onClick={onLogout} className="w-full rounded-xl border border-red-400/30 py-2 text-sm text-red-300 active:scale-[.98]">登出帳號</button>
     </div>
   );
