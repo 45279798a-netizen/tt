@@ -17,7 +17,7 @@ import { ChallengeMenu, InviteModal, DuelHud, DuelResult } from '../components/D
  * 左上：角色資訊（topLeft）　中上：地圖　右上：選單（topRight）
  * 左下：搖桿　　　　　　　　　　　　　　　右下：技能盤
  */
-export default function BattlePage({ player, config, events, active, killsPerMin = 0, pushEvent, onTrialStart, onTrialEnd, onRaidStart, onChangeMap, onGoTown, onNpc, topLeft, topRight }) {
+export default function BattlePage({ player, config, events, active, killsPerMin = 0, pushEvent, onTrialStart, onTrialEnd, onRaidStart, onChangeMap, onGoTown, onGoBoss, onNpc, topLeft, topRight }) {
   const wrapRef = useRef(null);
   const overlayRef = useRef(null);
   const sceneRef = useRef(null);
@@ -54,8 +54,10 @@ export default function BattlePage({ player, config, events, active, killsPerMin
 
   const town = player.inTown;
   const field = !town && !!player.inField; // 緣起獵場：怪物強度 = 自己最遠的地圖
+  const altar = !town && !!player.inBoss;  // 深淵祭壇：巨大首領
   const tierMap = config.maps[player.mapId];
-  const map = useMemo(() => (field ? { ...tierMap, id: 'field', field: true, name: '緣起獵場' } : tierMap), [field, tierMap]);
+  const map = useMemo(() => (field ? { ...tierMap, id: 'field', field: true, name: '緣起獵場' }
+    : altar ? { ...tierMap, id: 'boss', bossMap: true, name: '深淵祭壇' } : tierMap), [field, altar, tierMap]);
   // 莊園：在村莊時可以進自己的或好友的莊園（伺服器上仍算在村莊，沒有戰鬥）
   const [manor, setManor] = useState(manorStore.get());
   useEffect(() => manorStore.subscribe(setManor), []);
@@ -236,7 +238,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         else if (m.t === 'boss_dead') setBossNews({ kind: 'dead', ...m, at: Date.now() });
         else if (m.t === 'raid_reward') pushEvent?.({ type: 'info', text: `🦇 首領突襲成功！傷害 ${Math.round(m.share * 100)}%：💠${m.essence}、羽晶×${m.mats.wf}、星輝羽×${m.mats.wr}、💰${fmt(m.gold)}${m.eggs ? '、🥚寵物蛋×1' : ''}${m.lowMap ? '（低階地圖，獎勵減少）' : ''}` });
         else if (m.t === 'raid_fail') pushEvent?.({ type: 'error', text: `🦇 首領突襲失敗……${m.name}還活著` });
-        else if (m.t === 'boss_reward') pushEvent?.({ type: 'info', text: `👑 討伐成功！第 ${m.rank} 名（${Math.round(m.share * 100)}%）獲得 羽晶×${m.wf}、星輝羽×${m.wr}、💰${fmt(m.gold)}${m.eggs ? '、🥚寵物蛋×1' : ''}` });
+        else if (m.t === 'boss_reward') pushEvent?.({ type: 'info', text: `👑 討伐成功！第 ${m.rank} 名（${Math.round(m.share * 100)}%）獲得 💠${m.essence}、羽晶×${m.wf}、星輝羽×${m.wr}、💰${fmt(m.gold)}${m.eggs ? '、🥚寵物蛋×1' : ''}` });
         else if (m.t === 'duel_start') {
           s()?.startDuel(m.duel);
           setDuel({ ...m.duel, receivedAt: Date.now() });
@@ -262,7 +264,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
     return () => { if (s()) { s().onFx = null; s().onHit = null; } net.close(); netRef.current = null; };
   }, [player.id]);
 
-  const next = !town && !field && config.maps[player.mapId + 1];
+  const next = !town && !field && !altar && config.maps[player.mapId + 1];
   const u = player.nextUnlock;
   const canAdvance = next && u?.ok;
   const monster = config.sets[player.mapId];
@@ -302,8 +304,8 @@ export default function BattlePage({ player, config, events, active, killsPerMin
               </>
             ) : (
               <>
-                <span className="text-sm font-bold">{field ? '🌾 緣起獵場' : map.name}</span>
-                <span className="ml-2 text-[11px] font-bold" style={{ color: setColor(player.mapId) }}>{field ? `強度：${tierMap.name}` : `狩獵：${monster.monster}`}</span>
+                <span className="text-sm font-bold">{field ? '🌾 緣起獵場' : altar ? '👑 深淵祭壇' : map.name}</span>
+                <span className="ml-2 text-[11px] font-bold" style={{ color: setColor(player.mapId) }}>{field ? `強度：${tierMap.name}` : altar ? '巨大首領討伐' : `狩獵：${monster.monster}`}</span>
                 <span className="num ml-2 text-[11px] text-white/55 short:hidden">{killsPerMin} 殺/分</span>
               </>
             )}
@@ -337,7 +339,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
               <button onClick={() => onGoTown?.()}
                 className="rounded-full bg-emerald-900/70 px-2.5 py-1 text-[11px] font-bold text-emerald-200 backdrop-blur active:scale-95">🏘 回村莊</button>
             )}
-            {!town && !field && player.mapId > 0 && (
+            {!town && !field && !altar && player.mapId > 0 && (
               <button onClick={() => onChangeMap(player.mapId - 1)}
                 className="rounded-full bg-black/45 px-2.5 py-1 text-[11px] text-white/60 backdrop-blur">◀ 上一區</button>
             )}
@@ -358,7 +360,8 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         <div className="pointer-events-auto">{topRight}</div>
       </div>
 
-      {boss && !duel && <BossBar boss={boss} share={player.worldBoss?.myShare ?? 0} />}
+      {boss && !duel && <BossBar boss={boss} share={player.worldBoss?.myShare ?? 0} eff={Math.max(boss.minMul ?? 0, player.stats.atk / (player.stats.atk + boss.def * boss.defK))} />}
+      {altar && !boss && !duel && <BossBar sleeping next={player.worldBoss?.next} />}
       {player.trial && !player.inTown && <TrialHud trial={player.trial} />}
       {town && !inManor && (
         <button onClick={() => enterManor(player.id)}
@@ -374,7 +377,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         </div>
       )}
       {player.raid && !player.inTown && !duel && <BossBar boss={player.raid} share={0} raid />}
-      {!town && !field && !duel && !player.raid && (
+      {!town && !field && !altar && !duel && !player.raid && (
         <button onClick={() => setRaidConfirm(true)}
           className="pointer-events-auto fixed left-3 top-[134px] z-20 rounded-xl border border-rose-300/50 bg-rose-950/80 px-3 py-1.5 text-xs font-bold text-rose-100 backdrop-blur active:scale-95">
           🦇 首領突襲{cdLabel(player.raidCd)}
@@ -392,7 +395,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
           </div>
         </Modal>
       )}
-      {!town && !duel && !player.trial && (
+      {!town && !altar && !duel && !player.trial && (
         <button onClick={() => setTrialConfirm(true)}
           className="pointer-events-auto fixed left-3 top-[96px] z-20 rounded-xl border border-violet-300/50 bg-violet-950/80 px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur active:scale-95">
           🌀 魔物潮{cdLabel(player.trialCd)}
@@ -430,7 +433,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         </Modal>
       )}
       {bossNews && Date.now() - bossNews.at < 12000 && (
-        <BossNews news={bossNews} player={player} onGo={() => { onChangeMap(bossNews.mapId); setBossNews(null); }} onClose={() => setBossNews(null)} />
+        <BossNews news={bossNews} player={player} onGo={() => { onGoBoss?.(); setBossNews(null); }} onClose={() => setBossNews(null)} />
       )}
       {info && (
         <div className="pointer-events-none fixed inset-x-0 top-28 z-40 grid place-items-center">
@@ -502,37 +505,41 @@ function LinkBadge({ link, count, onRetry }) {
 }
 
 /** 世界王血條（畫面上方中間） */
-function BossBar({ boss, share, raid = false }) {
+function BossBar({ boss, share, raid = false, eff = null, sleeping = false, next = 0 }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(t); }, []);
+  if (sleeping) {
+    const left = Math.max(0, Math.ceil((next - now) / 1000));
+    return (
+      <div className="pointer-events-none fixed inset-x-0 top-[104px] z-20 grid place-items-center short:top-[84px]">
+        <div className="rounded-full bg-black/60 px-4 py-1 text-xs font-bold text-violet-200">💤 首領沉睡中，<span className="num text-gold">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span> 後甦醒</div>
+      </div>
+    );
+  }
   const pct = Math.max(0, (boss.hp / boss.maxHp) * 100);
   const left = Math.max(0, Math.ceil((boss.endAt - now) / 1000));
   return (
-    <div className={`pointer-events-none fixed inset-x-0 ${raid ? 'top-[150px]' : 'top-[104px]'} z-20 grid place-items-center`}>
+    <div className={`pointer-events-none fixed inset-x-0 ${raid ? 'top-[150px]' : 'top-[104px] short:top-[84px]'} z-20 grid place-items-center`}>
       <div className="w-[min(520px,60vw)]">
         <div className="flex items-end justify-between px-1 text-xs font-bold">
-          <span className={`${raid ? 'text-violet-200' : 'text-red-200'} drop-shadow`}>{boss.icon} {boss.name} <span className="font-normal text-white/60">{raid ? `首領突襲 · ${boss.party} 人 · 第 ${pct > 70 ? 1 : pct > 35 ? 2 : 3} 階段` : '世界王'}</span></span>
-          <span className="num text-white/70">{raid ? '' : `我 ${Math.round(share * 100)}% · `}⏱ {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span>
+          <span className={`${raid ? 'text-violet-200' : 'text-red-200'} drop-shadow`}>{boss.icon} {boss.name} <span className="font-normal text-white/60">{raid ? `首領突襲 · ${boss.party} 人 · 第 ${pct > 70 ? 1 : pct > 35 ? 2 : 3} 階段` : `巨大首領 · ${boss.fighters} 人參與`}</span></span>
+          <span className="num text-white/70">{raid ? `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `我 ${Math.round(share * 100)}% · 破防 ${Math.round((eff ?? 1) * 100)}%`}</span>
         </div>
         <div className="boss-bar"><i style={{ width: `${pct}%` }} /><span className="num">{fmt(boss.hp)} / {fmt(boss.maxHp)}</span></div>
       </div>
     </div>
   );
 }
-
-/** 世界王公告：出現（可以直接傳送過去）/ 打倒 / 逃走 */
 function BossNews({ news, player, onGo, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 12000); return () => clearTimeout(t); }, [news.at, onClose]);
-  const canGo = news.kind === 'spawn' && news.mapId <= player.maxMap && (player.inTown || player.mapId !== news.mapId);
-  const text = news.kind === 'spawn' ? `${news.icon} 世界王「${news.name}」出現在 ${news.mapName}！`
-    : news.kind === 'dead' ? `👑 世界王「${news.name}」被討伐了！${news.top ? `傷害第一：${news.top}` : ''}`
-    : `💨 世界王「${news.name}」離開了 ${news.mapName}`;
+  const canGo = news.kind === 'spawn' && !player.inBoss;
+  const text = news.kind === 'spawn' ? `${news.icon} 巨大首領「${news.name}」在深淵祭壇甦醒了！`
+    : `👑 巨大首領「${news.name}」被討伐了！${news.top ? `傷害第一：${news.top}` : ''}`;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[150px] z-40 grid place-items-center">
+    <div className="pointer-events-none fixed inset-x-0 top-[150px] z-40 grid place-items-center short:top-[110px]">
       <div className="toast-pop pointer-events-auto flex items-center gap-3 rounded-2xl border border-red-400/60 bg-ink/90 px-4 py-2 text-sm font-bold text-red-100 shadow-xl">
         <span>{text}</span>
         {canGo && <button onClick={onGo} className="rounded-lg bg-red-500 px-3 py-1 text-xs text-white active:scale-95">前往討伐</button>}
-        {news.kind === 'spawn' && news.mapId > player.maxMap && <span className="text-[11px] font-normal text-white/50">（還沒解鎖這張地圖）</span>}
         <button onClick={onClose} className="text-white/40">✕</button>
       </div>
     </div>

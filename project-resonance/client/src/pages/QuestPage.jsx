@@ -47,7 +47,7 @@ export default function QuestPage({ player, config, onClaimDaily, onChest, onCla
         </div>
       ) : (
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-3">
-          <p className="text-[11px] text-white/45">一輩子的目標。每一階都能領獎勵和成就點，每 10 成就點永久攻擊、生命 +0.5%。</p>
+          <p className="text-[11px] text-white/45">一輩子的目標。每一階都能領獎勵和成就點，每 10 成就點永久攻擊、生命 +0.2%。</p>
           {A.list.map((a) => (
             <div key={a.id} className="rounded-xl bg-white/5 p-2.5">
               <div className="flex items-center gap-2 text-sm font-bold">{a.icon} {a.name}<span className="num ml-auto text-xs font-normal text-white/50">目前 {fmt(a.value)} {a.unit}</span></div>

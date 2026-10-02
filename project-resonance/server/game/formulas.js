@@ -43,8 +43,10 @@ export const LOW_MAP_PENALTY = 0.3;
 export const farmMul = (p, mapId) => LOW_MAP_PENALTY ** Math.max(0, (p.maxMap ?? 0) - mapId);
 
 /** rb = 轉職次數：轉職後同一個等級需要更多經驗 */
+// v0.5 平衡：原本每級 ×1.15，經驗又是每區 ×20 → 一區就跳 20 多級，3 小時 Lv.80、15 小時 Lv.100
+//   改成 30 級以後每級 ×1.24（每區大約 14 級）→ Lv.100 大概在第 6~7 區，轉職變成後期目標
 export function expToNext(level, rb = 0) {
-  return Math.floor(20 * 1.15 ** level * (1 + rb * REBIRTH_EXP_MUL));
+  return Math.floor(20 * 1.15 ** Math.min(level, 30) * 1.27 ** Math.max(0, level - 30) * (1 + rb * REBIRTH_EXP_MUL));
 }
 
 /** 身上穿的裝備實體：{ weapon: inst|null, helm: ..., ... } */
@@ -140,7 +142,8 @@ export function calcRates(p) {
 // ── 前往下一區的戰力門檻 ─────────────────────
 // 「上一區整套 5 件（普通品質、無附加）、每件強化 +N、等級 L」的戰力
 // 這樣調裝備數值時門檻會自動跟著變，不會又變成一進去就秒殺 / 永遠進不去
-const REQ_BUILD = [null, { enh: 5, level: 22 }, { enh: 6, level: 45 }, { enh: 6, level: 60 }, { enh: 7, level: 80 }, { enh: 8, level: 100 }, { enh: 9, level: 100 }, { enh: 10, level: 100 }];
+// v0.5 平衡：後期門檻原本只要 +8~+10，模擬 18 小時就破完 8 區 → 後期要求更高的強化
+const REQ_BUILD = [null, { enh: 5, level: 22 }, { enh: 8, level: 40 }, { enh: 12, level: 55 }, { enh: 16, level: 70 }, { enh: 20, level: 85 }, { enh: 25, level: 95 }, { enh: 30, level: 105 }];
 function referenceCP(tier, enh, level) {
   const inv = [];
   const equipped = {};

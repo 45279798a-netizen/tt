@@ -18,7 +18,7 @@ import { ITEMS, SLOTS, SETS, DROP, UNLOCK_PIECES, setBonus } from './items.js';
 import {
   rollItem, enhanceCap, enhanceCost, rerollCost, dismantleYield, reroll, INV_LIMIT,
 } from './gear.js';
-import { CLASS_SKILLS } from './skills.js';
+import { CLASS_SKILLS, loadoutOf, LOADOUT_SIZE } from './skills.js';
 import { TALENTS, learnTalent, talentPoints, spentPoints, autoTalents } from './talents.js';
 import { ensureDaily, dailyAdd, dailyView, questReward, chestReward } from './daily.js';
 import { ACHIEVEMENTS, achieveView, achieveReward, achieveClaimable } from './achieve.js';
@@ -89,9 +89,10 @@ function migrate(p) {
   p.maxMap ??= p.mapId;
   p.essence ??= 0;
   p.inTown ??= false;
-  p.inField ??= false;
-  p.talents ||= {};                              // 天賦樹 { id: 等級 }
-  p.ach ||= { claimed: {}, points: 0 };          // 成就   // 在村莊南邊的「緣起獵場」（mapId = 自己最遠的地圖，強度跟著自己）
+  p.inField ??= false;   // 在村莊南邊的「緣起獵場」（mapId = 自己最遠的地圖，強度跟著自己）
+  p.inBoss ??= false;    // 在「深淵祭壇」打巨大首領
+  p.talents ||= {};      // 天賦樹 { id: 等級 }
+  p.ach ||= { claimed: {}, points: 0 }; // 成就
   delete p.skills; // 技能改成每職業固定，不再存玩家配置
   p.friends ||= [];
   p.friendReqs ||= [];
@@ -703,6 +704,18 @@ export function synth(p, id, times = 1) {
   return { to: Object.fromEntries(Object.entries(r.to).map(([k, v]) => [k, v * n])) };
 }
 
+// ── 技能選擇：每個職業 6 招選 4 招 ─────────────
+export function setLoadout(p, cls, ids) {
+  const pool = CLASS_SKILLS[cls];
+  if (!pool) throw new GameError('沒有這個職業');
+  const list = [...new Set((Array.isArray(ids) ? ids : []).map(String))];
+  if (list.length !== LOADOUT_SIZE || !list.every((id) => pool.includes(id))) throw new GameError(`要選 ${LOADOUT_SIZE} 招不同的技能`);
+  p.loadouts ||= {};
+  p.loadouts[cls] = list;
+  scheduleSave();
+  return { cls, ids: list };
+}
+
 // ── 天賦樹 ───────────────────────────────────
 const talentStatsOf = (p) => { const s = {}; for (const [id, lv] of Object.entries(p.talents || {})) for (const [k, v] of Object.entries(TALENTS[id]?.per || {})) s[k] = (s[k] || 0) + (v * lv) / 100; return s; };
 export { autoTalents };
@@ -887,7 +900,7 @@ export function friendList(p, isOnline) {
     return {
       id, name: f.name, level: f.level, cp: calcCP(calcStats(f)), pvp: f.pvp,
       online: isOnline(id), inTown: f.inTown, mapId: f.mapId,
-      where: f.inTown ? '村莊' : f.inField ? '緣起獵場' : MAPS[f.mapId]?.name, bot: !!f.bot,
+      where: f.inTown ? '村莊' : f.inField ? '緣起獵場' : f.inBoss ? '深淵祭壇' : MAPS[f.mapId]?.name, bot: !!f.bot,
     };
   };
   return {
@@ -902,6 +915,7 @@ export function travelToFriend(p, id) {
   if (!f || !p.friends.includes(id)) throw new GameError('對方不是你的好友');
   if (f.inTown) return enterTown(p);
   if (f.inField) return enterField(p);
+  if (f.inBoss) return enterBoss(p);
   if (f.mapId > p.maxMap) throw new GameError(`你還沒解鎖「${MAPS[f.mapId].name}」`);
   changeMap(p, f.mapId);
 }
@@ -910,6 +924,7 @@ export function travelToFriend(p, id) {
 export function enterTown(p) {
   p.inTown = true;
   p.inField = false;
+  p.inBoss = false;
   scheduleSave();
 }
 
@@ -955,6 +970,7 @@ export function changeMap(p, mapId) {
   p.maxMap = Math.max(p.maxMap, mapId);
   p.inTown = false;
   p.inField = false;
+  p.inBoss = false;
   scheduleSave();
 }
 
@@ -963,6 +979,17 @@ export function enterField(p) {
   p.mapId = Math.min(p.maxMap, MAPS.length - 1);
   p.inTown = false;
   p.inField = true;
+  p.inBoss = false;
+  scheduleSave();
+}
+
+/** 深淵祭壇：巨大首領的專屬地圖（地圖上沒有小怪，mapId 用自己最遠的地圖） */
+export function enterBoss(p) {
+  p.mapId = Math.min(p.maxMap, MAPS.length - 1);
+  p.inTown = false;
+  p.inField = false;
+  p.inBoss = true;
+  p.lastBossHit = Date.now();
   scheduleSave();
 }
 
@@ -1012,8 +1039,8 @@ export function snapshot(p) {
     equipped: p.equipped,
     gear: gearOf(p),
     codex: p.codex,
-    inTown: p.inTown, inField: !!p.inField,
-    skills: CLASS_SKILLS, // 固定技能（前端用目前武器類型取對應的 4 招）
+    inTown: p.inTown, inField: !!p.inField, inBoss: !!p.inBoss,
+    skills: Object.fromEntries(Object.keys(CLASS_SKILLS).map((c) => [c, loadoutOf(p, c)])), // 每個職業目前帶的 4 招
     friendReqs: p.friendReqs.length,
     setBonus: setBonus(Object.values(gearOf(p))),
     nextUnlock: unlockState(p, p.mapId + 1),
@@ -1063,7 +1090,7 @@ export function publicInfo(id) {
     id: p.id, name: p.name, level: p.level, mapId: p.mapId,
     rebirth: rebirthOf(p), title: titleOf(p, stats.wtype), skillMul: stats.skillMul,
     equipped: gearOf(p), atk: stats.atk, dps: stats.dps, wtype: stats.wtype,
-    cp: calcCP(stats), pvp: p.pvp, zone: p.inTown ? -1 : p.inField ? 'F' : p.mapId, inTown: p.inTown, inField: !!p.inField, bot: !!p.bot,
+    cp: calcCP(stats), pvp: p.pvp, zone: p.inTown ? -1 : p.inField ? 'F' : p.inBoss ? 'B' : p.mapId, inTown: p.inTown, inField: !!p.inField, bot: !!p.bot,
     mount: p.mount, mountSpeed: stats.mountSpeed,
     wing: p.wing, wingLv: p.wing ? p.wings[p.wing]?.lv ?? 1 : 0,
     pet: p.pet, petLv: p.pet ? p.pets[p.pet]?.lv ?? 1 : 0,

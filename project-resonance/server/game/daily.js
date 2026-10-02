@@ -11,7 +11,7 @@ export const DAILY_POOL = [
   { kind: 'enhance', name: '強化裝備', icon: '✨', targets: [3, 6, 10] },
   { kind: 'dismantle', name: '分解裝備', icon: '♻️', targets: [3, 6] },
   { kind: 'trial', name: '完成魔物潮', icon: '🌀', targets: [1] },
-  { kind: 'boss', name: '討伐世界王或首領', icon: '👑', targets: [1] },
+  { kind: 'boss', name: '討伐巨大首領或首領突襲', icon: '👑', targets: [1] },
   { kind: 'skill', name: '施放技能', icon: '🌟', targets: [40, 80] },
 ];
 const QUESTS_PER_DAY = 5;

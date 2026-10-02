@@ -50,7 +50,7 @@ export const DROP = { common: 0.15, rare: 0.006 }; // 怪變多後下調，維�
 // → 每一區「做齊一套」要花的時間大約是上一區的 TIER_MATS 倍
 export const TIER_MATS = 2.2;
 export const TIER_GOLD = 22; // 跟 formulas.js 的金幣 / 擊殺成長一致
-export const LATE_MATS = 1.15; // 第 4 區以後每區素材需求成長
+export const LATE_MATS = 1.9; // 第 4 區以後每區素材需求成長（v0.5：1.15 → 1.9，模擬原本 18 小時就破完 8 區）
 
 // 換到下一區，需要擁有目前這區套裝幾件（像魔物獵人的升階條件）
 export const UNLOCK_PIECES = 3;

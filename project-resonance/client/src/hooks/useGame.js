@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, auth } from '../utils/api.js';
 import { takeKills } from '../utils/killFeed.js';
 import { vibrate } from '../utils/format.js';
+import { loadMonsterModels } from '../game3d/monsterModels.js';
+
+const MODEL_WAIT_MS = 12000; // 模型最多等 12 秒，之後背景繼續載（怪物先用程式外觀）
 
 const SYNC_MS = 2000;
 
@@ -18,6 +21,7 @@ export function useGame() {
   const [error, setError] = useState('');
   const [online, setOnline] = useState(true);
   const [booting, setBooting] = useState(true);
+  const [boot, setBoot] = useState({ pct: 0.1, text: '連線伺服器中…' }); // 載入畫面的進度條
   const evId = useRef(0);
   const recent = useRef([]); // 最近幾次結算的擊殺數，算「實際」擊殺速度
   const [killsPerMin, setKillsPerMin] = useState(0);
@@ -60,13 +64,27 @@ export function useGame() {
   }, []);
 
   // 啟動：抓設定 + 用記住的登入憑證自動登入
+  // 三件事同時進行：抓設定、自動登入、下載角色 / 怪物模型（第二次打開模型會從手機快取讀，幾乎不用等）
   useEffect(() => {
+    let modelPct = 0, step = 0;
+    const show = (text) => setBoot({ pct: 0.08 + step * 0.12 + modelPct * 0.68, text });
+    const models = Promise.race([
+      loadMonsterModels((k) => { modelPct = k; show(`載入角色與怪物模型 ${Math.round(k * 100)}%`); }),
+      new Promise((r) => setTimeout(r, MODEL_WAIT_MS)),
+    ]);
     (async () => {
       try {
-        setConfig(await api.config());
+        const cfg = await api.config();
+        step = 1; show('讀取存檔中…');
+        let me = null;
         if (auth.get()) {
-          try { enter(await api.session()); } catch (e) { if (e.status === 401) auth.clear(); }
+          try { me = await api.session(); } catch (e) { if (e.status === 401) auth.clear(); }
         }
+        step = 2; show('載入角色與怪物模型…');
+        await models;
+        setBoot({ pct: 1, text: '準備完成！' });
+        setConfig(cfg);
+        if (me) enter(me);
       } catch (e) {
         setError(e.message);
         setOnline(false);
@@ -132,8 +150,14 @@ export function useGame() {
   const doChangeMap = useCallback((mapId) => act(() => api.changeMap(mapId)), [act]);
   const doGoTown = useCallback(() => act(() => api.goTown()), [act]);
   const doGoField = useCallback(() => act(() => api.goField()), [act]);
+  const doGoBoss = useCallback(() => act(() => api.goBoss()), [act]);
   const doTalent = useCallback((id) => act(() => api.talent(id)).then((r) => { if (r) vibrate(15); return r; }), [act]);
   const doTalentReset = useCallback(() => act(() => api.talentReset()), [act]);
+  const doLoadout = useCallback(async (cls, ids) => {
+    const r = await act(() => api.loadout(cls, ids));
+    if (r) pushEvent({ type: 'info', text: '✅ 技能配置已儲存' });
+    return r;
+  }, [act, pushEvent]);
   const gotText = (r) => [r.essence && `💠${r.essence}`, r.eggs && `🥚×${r.eggs}`, r.points && `成就點 +${r.points}`].filter(Boolean).join('、');
   const doClaim = useCallback(async (fn, label) => {
     const r = await act(fn);
@@ -185,11 +209,11 @@ export function useGame() {
   }, [act, pushEvent]);
 
   return {
-    player, config, events, error, online, booting, killsPerMin,
+    player, config, events, error, online, booting, boot, killsPerMin,
     login, register, logout, pushEvent,
     doCraft, doEquip, doEnhance, doReroll, doDismantle, doLock, doChangeMap, doGoTown, doTravel,
-    doBuyMount, doUpgradeMount, doEquipMount, doCraftWing, doUpgradeWing, doEquipWing, doRecruitPartner, doDeployPartner, doUpgradePartner, doTrialStart, doTrialEnd, doRaidStart, doPet, doRebirth, doClaimAdmin, doGoField,
-    doTalent, doTalentReset, doDailyClaim, doDailyChest, doAchieveClaim,
+    doBuyMount, doUpgradeMount, doEquipMount, doCraftWing, doUpgradeWing, doEquipWing, doRecruitPartner, doDeployPartner, doUpgradePartner, doTrialStart, doTrialEnd, doRaidStart, doPet, doRebirth, doClaimAdmin, doGoField, doGoBoss,
+    doTalent, doTalentReset, doLoadout, doDailyClaim, doDailyChest, doAchieveClaim,
   };
 }
 

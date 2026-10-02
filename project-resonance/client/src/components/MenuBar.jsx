@@ -9,12 +9,13 @@ export const MENUS = [
   { id: 'friends', label: '好友', icon: 'M9 11a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5M16 4.5a3.5 3.5 0 010 6.5M18 14.8c2.4.6 4 2.3 4 5.2' },
   { id: 'quest', label: '任務', icon: 'M9 4h6l1 2h3v15H5V6h3zM9 11l2 2 4-4M8 17h8' },
   { id: 'talent', label: '天賦', icon: 'M12 21V11M12 11l-5-5M12 11l5-5M7 6a2 2 0 10-.01 0M17 6a2 2 0 10-.01 0M12 11a2 2 0 10-.01 0' },
+  { id: 'settings', label: '設定', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-2.8 1.2V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-2.8-1.2l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00-1.2-2.8H3a2 2 0 110-4h.1a1.7 1.7 0 001.2-2.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 002.8-1.2V3a2 2 0 114 0v.1a1.7 1.7 0 002.8 1.2l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 001.2 2.8H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z' },
   { id: 'board', label: '排行', icon: 'M5 20l2-9 5 4 5-4 2 9zM7 11L5 5l4 3 3-5 3 5 4-3-2 6' },
 ];
 
 // 村莊 NPC 打開的面板
 export const ADMIN_MENU = { id: 'admin', label: '管理', icon: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM9 12l2 2 4-4' };
-export const NPC_PANELS = { field: '🌾 獵場守衛·阿岳', rebirth: '🌟 轉職殿堂·艾琳', admin: '🛡 管理員', smith: '🔨 鍛造師·鐵錘', portal: '✨ 傳送師·露娜', board: '📜 冒險者告示板', stable: '🐎 馬廄·阿蹄', tavern: '🍺 酒館', manor: '🏡 莊園' };
+export const NPC_PANELS = { boss: '👑 巨大首領討伐', field: '🌾 獵場守衛·阿岳', rebirth: '🌟 轉職殿堂·艾琳', admin: '🛡 管理員', smith: '🔨 鍛造師·鐵錘', portal: '✨ 傳送師·露娜', board: '📜 冒險者告示板', stable: '🐎 馬廄·阿蹄', tavern: '🍺 酒館', manor: '🏡 莊園' };
 
 const FS_ICON = 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5';
 

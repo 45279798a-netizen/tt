@@ -6,7 +6,7 @@ import { GearTile, GearDetail, mainStatText } from '../components/Gear.jsx';
 import { WEAPON_STYLE } from '../game3d/BattleScene.js';
 
 /** 角色頁：左邊 3D 模型，右邊「裝備 / 技能 / 數值」 */
-export default function CharacterPage({ player, config, onEquip, onLogout, onClaimAdmin, onCraftWing, onUpgradeWing, onEquipWing }) {
+export default function CharacterPage({ player, config, onEquip, onLogout, onClaimAdmin, onLoadout, onCraftWing, onUpgradeWing, onEquipWing }) {
   const [tab, setTab] = useState('gear');
   const [previewWing, setPreviewWing] = useState(null); // 翅膀頁點選時先預覽
   const wingId = tab === 'wings' && previewWing ? previewWing : player.wing;
@@ -36,7 +36,7 @@ export default function CharacterPage({ player, config, onEquip, onLogout, onCla
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {tab === 'gear' && <GearTab player={player} config={config} onEquip={onEquip} />}
-          {tab === 'skills' && <SkillsTab player={player} config={config} />}
+          {tab === 'skills' && <SkillsTab player={player} config={config} onLoadout={onLoadout} />}
           {tab === 'wings' && <WingsTab player={player} config={config} preview={wingId} onPreview={setPreviewWing}
             onCraft={onCraftWing} onUpgrade={onUpgradeWing} onEquip={onEquipWing} />}
           {tab === 'stats' && <StatsTab player={player} config={config} onLogout={onLogout} onClaimAdmin={onClaimAdmin} />}
@@ -107,15 +107,19 @@ function GearTab({ player, config, onEquip }) {
 }
 
 /** 技能：每個職業固定 4 招（不能更換，換武器 = 換職業） */
-function SkillsTab({ player, config }) {
+function SkillsTab({ player, config, onLoadout }) {
   const cls = player.stats.wtype;
-  const ids = config.classSkills[cls];
+  const pool = config.classSkills[cls];
   const basic = WEAPON_STYLE[cls].basic;
+  const [pick, setPick] = useState(player.skills[cls] || pool.slice(0, 4));
+  useEffect(() => { setPick(player.skills[cls] || pool.slice(0, 4)); }, [cls, player.skills]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggle = (id) => setPick((l) => (l.includes(id) ? l.filter((x) => x !== id) : l.length < 4 ? [...l, id] : l));
+  const dirty = pick.length === 4 && pick.join() !== (player.skills[cls] || []).join();
 
   return (
     <div className="space-y-2">
       <div className="text-xs text-white/50">
-        <b className="text-gold">{config.weaponTypes[cls].name}</b> 的固定技能 · 想用別的技能就換一種武器
+        <b className="text-gold">{config.weaponTypes[cls].name}</b> 有 {pool.length} 招，選 <b>4 招</b>帶在技能盤上（點一下選 / 取消，數字 = 技能盤位置）
       </div>
       <div className="flex items-center gap-2.5 rounded-xl border border-gold/30 bg-gold/5 p-2">
         <span className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-amber-500/60 to-red-700/60 text-xl">{basic.icon}</span>
@@ -124,25 +128,27 @@ function SkillsTab({ player, config }) {
           <div className="text-[11px] text-white/45">強力普攻，可以狂點</div>
         </div>
       </div>
-      {ids.map((id, i) => {
+      {pool.map((id) => {
         const s = config.skills[id];
+        const at = pick.indexOf(id);
         return (
-          <div key={id} className="flex w-full items-center gap-2.5 rounded-xl border border-edge bg-panel p-2">
-            <span className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-indigo-500/50 to-slate-900/70 text-xl">{s.icon}</span>
+          <button key={id} onClick={() => toggle(id)}
+            className={`flex w-full items-center gap-2.5 rounded-xl border p-2 text-left transition active:scale-[.99] ${at >= 0 ? 'border-sky-400/60 bg-sky-500/10' : 'border-edge bg-panel opacity-70'}`}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500/50 to-slate-900/70 text-xl">{s.icon}</span>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-bold">{s.name}
                 <span className="num ml-2 text-[10px] font-normal text-white/40">冷卻 {s.cd} 秒{s.buff ? ' · 增益' : ''}</span>
               </div>
               <div className="text-[11px] text-white/50">{s.desc}</div>
             </div>
-            <span className="grid size-6 place-items-center rounded-full bg-sky-400/80 text-xs font-bold text-ink">{i + 1}</span>
-          </div>
+            <span className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold ${at >= 0 ? 'bg-sky-400/90 text-ink' : 'border border-white/20 text-white/30'}`}>{at >= 0 ? at + 1 : ''}</span>
+          </button>
         );
       })}
-      <div className="pt-1 text-[10px] text-white/30">
-        其他職業：{Object.keys(config.classSkills).filter((c) => c !== cls)
-          .map((c) => `${config.weaponTypes[c].name}（${config.classSkills[c].map((k) => config.skills[k].name).join('、')}）`).join(' · ')}
-      </div>
+      <button disabled={!dirty} onClick={() => onLoadout?.(cls, pick)}
+        className="w-full rounded-xl bg-gold py-2.5 text-sm font-bold text-ink transition active:scale-[.98] disabled:opacity-30">
+        {pick.length < 4 ? `再選 ${4 - pick.length} 招` : dirty ? '儲存技能配置' : '目前的配置'}
+      </button>
     </div>
   );
 }

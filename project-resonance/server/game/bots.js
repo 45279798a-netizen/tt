@@ -16,7 +16,8 @@ import { CLASS_SKILLS } from './skills.js';
 import { MOUNTS } from './mounts.js';
 import { enhanceCost } from './gear.js';
 import * as S from './state.js';
-import { botJoin, botLeave, botFx, humansIn } from './realtime.js';
+import { botJoin, botLeave, botFx, humansIn, deliver } from './realtime.js';
+import { bossPublic, hitBoss, defMul } from './boss.js';
 
 const BOT_COUNT = Math.max(0, Math.min(40, Number(process.env.BOTS ?? 10)));
 const NAMES = ['小藍莓', '阿翔', '柚子茶', '夜行貓', '星野', '咖哩飯', '路過的勇者', '阿肥', '小雨', '風間',
@@ -80,7 +81,7 @@ function routeTo(g, from, to) {
 // ── 每個 AI 的執行狀態（不存檔）──
 const brains = new Map();
 
-function zoneKey(p) { return p.inTown ? 'town' : p.inField ? 'field' : p.mapId; }
+function zoneKey(p) { return p.inTown ? 'town' : p.inField ? 'field' : p.inBoss ? 'boss' : p.mapId; }
 function wtypeOf(p) { return calcStats(p).wtype; }
 
 function goOnline(p, b, now) {
@@ -88,7 +89,8 @@ function goOnline(p, b, now) {
   b.until = now + rand(15, 60) * MIN;
   const r = Math.random();
   try {
-    if (r < 0.55) S.enterField(p);
+    if (bossPublic().alive && Math.random() < 0.2) S.enterBoss(p); // 有首領時偶爾去深淵祭壇幫忙打
+    else if (r < 0.55) S.enterField(p);
     else if (r < 0.9) S.changeMap(p, p.maxMap);
     else S.enterTown(p);
   } catch { S.enterField(p); }
@@ -121,11 +123,14 @@ function chooseCamp(g, b) {
 /** 每 0.2 秒：移動、普攻、放技能（只有那張地圖有真人在時才算，省資源） */
 function move(p, b, dt, now) {
   const c = b.c, key = zoneKey(p), g = geo(key);
-  const zone = p.inTown ? -1 : p.inField ? 'F' : p.mapId;
+  const zone = p.inTown ? -1 : p.inField ? 'F' : p.inBoss ? 'B' : p.mapId;
   if (!humansIn(zone)) { c.mv = 0; return; }
   const st = WEAPON_TYPES[wtypeOf(p)] ?? WEAPON_TYPES.great;
   if (p.inTown) { // 村莊：在廣場附近散步，偶爾到訓練場試招
     if (!b.path.length) b.path = [{ x: rand(-12, 12), z: rand(-12, 10) }];
+  } else if (p.inBoss) { // 深淵祭壇：圍著首領繞圈打
+    const ar = g.def.arena;
+    if (!b.path.length) { const a = rand(0, Math.PI * 2), r = rand(6, 10); b.path = [{ x: ar.x + Math.cos(a) * r, z: ar.z + Math.sin(a) * r }]; b.camp = { x: ar.x, z: ar.z, r: 12 }; }
   } else if (!b.camp || now > b.campT) chooseCamp(g, b);
   const wp = b.path[0];
   if (wp) {
@@ -159,6 +164,15 @@ function move(p, b, dt, now) {
 /** 每 2 秒：照真人的規則結算擊殺（只有在營地打怪時才有） */
 function earn(p, b, now, eff = rand(0.45, 0.8)) {
   if (p.inTown) { p.lastSettle = now; return; }
+  if (p.inBoss) { // 打首領：照真人一樣的上限與防禦算傷害
+    const info = bossPublic();
+    p.lastSettle = now;
+    if (!info.alive) { S.enterField(p); return; }
+    const st = calcStats(p);
+    const sec = Math.min(8, (now - (p.lastBossHit || now)) / 1000);
+    deliver(hitBoss(p.id, (st.dps / 5) * 3 * sec * eff * defMul(st.atk, info.def), now));
+    return;
+  }
   const r = calcRates(p);
   const sec = Math.min(8, (now - (p.lastSettle || now)) / 1000);
   const kills = Math.floor(r.killsPerSec * sec * eff + Math.random());
@@ -181,7 +195,7 @@ function think(p) {
         if (!ITEMS[base]) continue;
         const cur = p.inv.find((x) => x.uid === p.equipped[slot]);
         const curTier = cur ? ITEMS[cur.base].set : -1;
-        if (curTier >= tier && round === 0 && Math.random() < 0.7) continue; // 已經是這區的就少做
+        if (curTier >= tier && (cur.grade > 0 || p.gold < ITEMS[base].gold * 6)) continue; // 已經有這區的：只有很有錢時才重做碰運氣
         try {
           const inst = S.craft(p, base);
           const eq = { ...p.equipped, [slot]: inst.uid };
@@ -191,13 +205,24 @@ function think(p) {
       }
       if (!made) break;
     }
+    // 1b. 跟真人一樣「狂鍛造 → 分解換精華」：素材多的話做最便宜的護手拿去分解（留住下一件要用的錢）
+    const cheap = `s${tier}_gloves`;
+    const fullSet = SLOTS.every((slot) => { const cur = p.inv.find((x) => x.uid === p.equipped[slot]); return cur && ITEMS[cur.base].set >= tier; });
+    for (let i = 0; i < 12 && fullSet && ITEMS[cheap] && p.gold > ITEMS[cheap].gold * 4; i++) {
+      try { S.craft(p, cheap); } catch { break; }
+    }
     // 2. 分解沒穿的
     const junk = p.inv.filter((x) => !Object.values(p.equipped).includes(x.uid) && x.base !== 'starter_weapon').map((x) => x.uid);
     if (junk.length) try { S.dismantle(p, junk); } catch { /* ignore */ }
-    // 3. 強化身上的（武器優先），留一點錢
+    // 3. 強化身上的（武器優先）：先把「最高那區還沒做的部位」的錢留起來，才不會一直強化卻永遠做不出下一套
+    const reserve = SLOTS.reduce((n, slot) => {
+      const cur = p.inv.find((x) => x.uid === p.equipped[slot]);
+      const base = slot === 'weapon' ? (style === 'great' ? `s${tier}_weapon` : `s${tier}_${style}`) : `s${tier}_${slot}`;
+      return n + (ITEMS[base] && (!cur || ITEMS[cur.base].set < tier) ? ITEMS[base].gold : 0);
+    }, 0);
     for (let i = 0; i < 40; i++) {
       const eq = SLOTS.map((s) => p.inv.find((x) => x.uid === p.equipped[s])).filter(Boolean).sort((a, b2) => a.lv - b2.lv);
-      const it = eq.find((x) => x.base !== 'starter_weapon' && enhanceCost(x).gold < p.gold * 0.5);
+      const it = eq.find((x) => x.base !== 'starter_weapon' && enhanceCost(x).gold < (p.gold - reserve) * 0.5);
       if (!it) break;
       try { S.enhanceItem(p, it.uid); } catch { break; }
     }
@@ -215,16 +240,18 @@ function think(p) {
   }
 }
 
-/** 快轉：新建的 AI 先「玩過」一段時間，不然大家都是 1 等 */
-function fastForward(p, hours) {
+/** 快轉：新建的 AI 先「玩過」一段時間，不然大家都是 1 等（onHour：平衡模擬用，每小時回報一次） */
+export function fastForward(p, hours, onHour, eff = [0.5, 0.75]) {
   let t = Date.now() - hours * 3600_000;
+  const t0 = t;
   p.lastSettle = t;
   S.enterField(p);
-  let next = t + 90_000;
+  let next = t + 90_000, hour = t + 3600_000;
   while (t < Date.now()) {
     t += 8000;
-    earn(p, null, t, rand(0.5, 0.75));
+    earn(p, null, t, rand(...eff));
     if (t > next) { next = t + 90_000; think(p); if (!p.inField) S.enterField(p); }
+    if (onHour && t >= hour) { hour += 3600_000; onHour(Math.round((t - t0) / 3600_000), p); }
   }
   S.enterTown(p);
 }

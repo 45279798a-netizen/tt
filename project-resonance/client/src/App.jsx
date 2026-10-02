@@ -21,6 +21,7 @@ import RebirthPage from './pages/RebirthPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import TalentPage from './pages/TalentPage.jsx';
 import QuestPage from './pages/QuestPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
 
 export default function App() {
   const game = useGame();
@@ -32,7 +33,7 @@ export default function App() {
   useEffect(() => { lockLandscape(); }, []);
 
   let screen;
-  if (game.booting) screen = <Splash text="連線私服中…" />;
+  if (game.booting) screen = <Splash text={game.boot.text} pct={game.boot.pct} />;
   else if (!game.config) screen = <Splash text={`無法連上伺服器：${game.error}`} />;
   else if (!game.player) screen = <Login onLogin={game.login} onRegister={game.register} pwa={pwa} />;
   else {
@@ -40,11 +41,12 @@ export default function App() {
     const close = () => setPanel(null);
     const pages = {
       bag: <BagPage player={player} config={config} onEquip={game.doEquip} onLock={game.doLock} onDismantle={game.doDismantle} />,
+      settings: <SettingsPage />,
       talent: <TalentPage player={player} config={config} onLearn={game.doTalent} onReset={game.doTalentReset} />,
       quest: <QuestPage player={player} config={config} onClaimDaily={game.doDailyClaim} onChest={game.doDailyChest} onClaimAchieve={game.doAchieveClaim} />,
       rebirth: <RebirthPage player={player} config={config} onRebirth={game.doRebirth} />,
       admin: player.admin ? <AdminPage config={config} pushEvent={game.pushEvent} /> : null,
-      char: <CharacterPage player={player} config={config} onEquip={game.doEquip} onLogout={game.logout} onClaimAdmin={game.doClaimAdmin}
+      char: <CharacterPage player={player} config={config} onEquip={game.doEquip} onLogout={game.logout} onClaimAdmin={game.doClaimAdmin} onLoadout={game.doLoadout}
         onCraftWing={game.doCraftWing} onUpgradeWing={game.doUpgradeWing} onEquipWing={game.doEquipWing} />,
       friends: (
         <FriendsPage player={player}
@@ -61,7 +63,8 @@ export default function App() {
         ? <ForgePage player={player} config={config} onCraft={game.doCraft} onEnhance={game.doEnhance} onReroll={game.doReroll} onEquip={game.doEquip} />
         : <p className="p-6 text-center text-sm text-white/50">鍛造師在村莊裡，先回村莊吧</p>,
       stable: <StablePage player={player} config={config} onBuy={game.doBuyMount} onUpgrade={game.doUpgradeMount} onEquip={game.doEquipMount} />,
-      portal: <PortalPage player={player} config={config} onGo={async (id) => { if (await game.doChangeMap(id)) close(); }} onField={async () => { if (await game.doGoField()) close(); }} />,
+      portal: <PortalPage player={player} config={config} onGo={async (id) => { if (await game.doChangeMap(id)) close(); }} onField={async () => { if (await game.doGoField()) close(); }} onBoss={async () => { if (await game.doGoBoss()) close(); }} />,
+      boss: <BossGate player={player} config={config} onGo={async () => { if (await game.doGoBoss()) close(); }} />,
       field: <FieldGate player={player} config={config} onGo={async () => { if (await game.doGoField()) close(); }} />,
     };
     const title = MENUS.find((m) => m.id === panel)?.label ?? NPC_PANELS[panel];
@@ -69,7 +72,7 @@ export default function App() {
       <>
         <BattlePage
           player={player} config={config} events={game.events}
-          active={!portrait} killsPerMin={game.killsPerMin} pushEvent={game.pushEvent} onTrialStart={game.doTrialStart} onTrialEnd={game.doTrialEnd} onRaidStart={game.doRaidStart} onChangeMap={game.doChangeMap} onGoTown={game.doGoTown}
+          active={!portrait} killsPerMin={game.killsPerMin} pushEvent={game.pushEvent} onTrialStart={game.doTrialStart} onTrialEnd={game.doTrialEnd} onRaidStart={game.doRaidStart} onChangeMap={game.doChangeMap} onGoTown={game.doGoTown} onGoBoss={game.doGoBoss}
           onNpc={(id) => setPanel(id)}
           topLeft={<HudPlayer player={player} online={game.online} />}
           topRight={<MenuBar open={panel} onOpen={(id) => setPanel(panel === id ? null : id)} pwa={pwa} admin={player.admin} badges={{ friends: player.friendReqs, bag: player.inv.filter((x) => x.delta > 0).length, quest: player.badges.daily + player.badges.achieve, talent: player.badges.talent }} />}
@@ -119,6 +122,34 @@ function Toast({ events, config }) {
   );
 }
 
+/** 首領祭司：巨大首領的狀態 + 前往深淵祭壇 */
+function BossGate({ player, onGo }) {
+  const b = player.worldBoss || {};
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const eff = b.alive ? player.stats.atk / (player.stats.atk + b.def * b.defK) : 0;
+  const left = Math.max(0, Math.ceil(((b.next || 0) - now) / 1000));
+  return (
+    <div className="space-y-3 p-4 text-sm">
+      {b.alive ? (
+        <div className="rounded-xl border border-red-400/40 bg-red-500/10 p-3">
+          <div className="text-lg font-black text-red-100">{b.icon} {b.name} <span className="text-xs font-normal text-white/50">第 {b.gen + 1} 次甦醒</span></div>
+          <div className="boss-bar mt-2"><i style={{ width: `${(b.hp / b.maxHp) * 100}%` }} /><span className="num">{fmt(b.hp)} / {fmt(b.maxHp)}</span></div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-xs">
+            <div className="rounded-lg bg-black/30 p-1.5"><div className="text-white/45">參與</div><b>{b.fighters} 人</b></div>
+            <div className="rounded-lg bg-black/30 p-1.5"><div className="text-white/45">我的傷害</div><b>{Math.round((b.myShare || 0) * 100)}%</b></div>
+            <div className="rounded-lg bg-black/30 p-1.5"><div className="text-white/45">我的破防</div><b className={eff < 0.4 ? 'text-red-300' : 'text-emerald-300'}>{Math.round(eff * 100)}%</b></div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl bg-white/5 p-3 text-center">首領沉睡中，<b className="num text-gold">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</b> 後甦醒</div>
+      )}
+      <p className="text-xs leading-relaxed text-white/55">首領的<b>血量</b>是依照所有玩家（含 AI 玩家）的秒傷總和算的，<b>防禦</b>是大家攻擊力的平均；你的攻擊越高，被防禦擋掉的越少（上面的「破防」）。血量不會重置，大家陸續上線一起把它磨倒；倒下時依傷害比例發獎勵（依你自己的進度換算），前 3 名必得寵物蛋。</p>
+      <button disabled={!b.alive} onClick={onGo} className="w-full rounded-xl bg-red-500 py-3 font-bold active:scale-[.98] disabled:opacity-40">👑 前往深淵祭壇討伐</button>
+    </div>
+  );
+}
+
 /** 村莊南門的獵場守衛：前往緣起獵場 */
 function FieldGate({ player, config, onGo }) {
   return (
@@ -130,8 +161,20 @@ function FieldGate({ player, config, onGo }) {
   );
 }
 
-function Splash({ text }) {
-  return <div className="grid min-h-dvh place-items-center px-8 text-center text-sm text-white/50">{text}</div>;
+function Splash({ text, pct = null }) {
+  if (pct == null) return <div className="grid min-h-dvh place-items-center px-8 text-center text-sm text-white/50">{text}</div>;
+  return (
+    <div className="grid min-h-dvh place-items-center bg-ink px-8">
+      <div className="w-[min(320px,70vw)] text-center">
+        <div className="text-4xl font-black tracking-widest text-gold">緣起</div>
+        <div className="mt-3.5 mb-2 text-[13px] text-white/65">{text}</div>
+        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full rounded-full bg-gradient-to-r from-gold to-amber-200 transition-[width] duration-300" style={{ width: `${Math.round(pct * 100)}%` }} />
+        </div>
+        <div className="num mt-1.5 text-xs text-white/40">{Math.round(pct * 100)}%</div>
+      </div>
+    </div>
+  );
 }
 
 function Login({ onLogin, onRegister, pwa }) {

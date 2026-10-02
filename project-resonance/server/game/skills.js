@@ -60,16 +60,42 @@ export const SKILLS = {
   f_rise:  { cls: 'fist', name: '昇龍拳', icon: '🐲', cd: 8,  desc: '火焰昇龍上勾拳', pvp: { mult: 5, range: 5 } },
   f_wave:  { cls: 'fist', name: '烈火掌風', icon: '🔥', cd: 10, desc: '向前推出一道火焰掌風', pvp: { mult: 6, range: 11 } },
   f_burst: { cls: 'fist', name: '爆裂天拳', icon: '☄️', cd: 16, desc: '躍起從天砸下巨大火拳', pvp: { mult: 7.5, range: 9 } },
+
+  // ── v0.5：每把武器再加 2 招，6 招裡選 4 招帶 ──
+  g_charge:   { cls: 'great', name: '衝鋒斬', icon: '🐗', cd: 7,  desc: '往前衝 8 公尺，一路劈開', pvp: { mult: 5, range: 10 } },
+  g_storm:    { cls: 'great', name: '劍刃風暴', icon: '🌪️', cd: 14, desc: '3 秒的大範圍旋轉劍刃', pvp: { mult: 8, range: 7 } },
+  k_moon:     { cls: 'katana', name: '新月斬', icon: '🌒', cd: 7,  desc: '斬出一道往前飛的巨大月牙', pvp: { mult: 5, range: 13 } },
+  k_thousand: { cls: 'katana', name: '千本櫻', icon: '🌺', cd: 15, desc: '1.2 秒內四周亂斬 12 刀', pvp: { mult: 7.5, range: 9 } },
+  d_venom:    { cls: 'dual', name: '毒刃', icon: '🧪', cd: 14, desc: '6 秒內傷害 +40%，周圍噴出毒霧', pvp: { mult: 2, range: 5 }, buff: true },
+  d_xcut:     { cls: 'dual', name: '十字斬', icon: '❌', cd: 7,  desc: '前方交叉兩道斬擊', pvp: { mult: 5, range: 8 } },
+  s_nova:     { cls: 'staff', name: '星爆', icon: '💫', cd: 8,  desc: '身邊炸開一圈星光', pvp: { mult: 5, range: 7 } },
+  s_gravity:  { cls: 'staff', name: '重力井', icon: '🕳️', cd: 14, desc: '前方黑洞吸住敵人 1.5 秒後爆開', pvp: { mult: 8, range: 11 } },
+  sp_sweep:   { cls: 'spear', name: '橫掃千軍', icon: '🌀', cd: 7,  desc: '長槍大弧度橫掃', pvp: { mult: 4.8, range: 7 } },
+  sp_rain:    { cls: 'spear', name: '雷槍雨', icon: '🌩️', cd: 12, desc: '雷槍從天落在附近的敵人身上', pvp: { mult: 6.5, range: 12 } },
+  b_snipe:    { cls: 'bow', name: '狙擊', icon: '🔭', cd: 9,  desc: '瞄準最遠的敵人射出致命一箭', pvp: { mult: 6.5, range: 20 } },
+  b_trap:     { cls: 'bow', name: '爆裂陷阱', icon: '💣', cd: 10, desc: '前方放置陷阱，0.8 秒後爆炸', pvp: { mult: 5.5, range: 10 } },
+  sc_soul:    { cls: 'scythe', name: '靈魂收割', icon: '👻', cd: 10, desc: '化成魂影穿過前方敵人', pvp: { mult: 5.5, range: 10 } },
+  sc_grave:   { cls: 'scythe', name: '冥界之門', icon: '🚪', cd: 16, desc: '打開冥界之門，亡靈持續撕咬 2 秒', pvp: { mult: 8, range: 10 } },
+  f_dash:     { cls: 'fist', name: '迅雷步', icon: '⚡', cd: 6,  desc: '瞬間衝刺後一拳爆開', pvp: { mult: 4, range: 9 } },
+  f_aura:     { cls: 'fist', name: '鬥氣爆發', icon: '💢', cd: 18, desc: '6 秒內攻速 ×2，爆出鬥氣衝擊', pvp: { mult: 3, range: 5 }, buff: true },
 };
 
-/** 每個職業的固定技能（順序 = 技能盤由下往上的位置） */
+/** 每個職業可選的技能（6 招，前 4 招是預設帶的；順序 = 技能盤由下往上的位置） */
 export const CLASS_SKILLS = {
-  great: ['g_whirl', 'g_quake', 'g_split', 'g_nova'],
-  katana: ['k_spirit', 'k_mikiri', 'k_iai', 'k_sakura'],
-  dual: ['d_demon', 'd_shadow', 'd_blades', 'd_frenzy'],
-  staff: ['s_orb', 's_meteor', 's_beam', 's_judge'],
-  spear: ['sp_thrust', 'sp_leap', 'sp_drill', 'sp_dragon'],
-  bow: ['b_multi', 'b_pierce', 'b_rain', 'b_storm'],
-  scythe: ['sc_reap', 'sc_chain', 'sc_tide', 'sc_eclipse'],
-  fist: ['f_combo', 'f_rise', 'f_wave', 'f_burst'],
+  great: ['g_whirl', 'g_quake', 'g_split', 'g_nova', 'g_charge', 'g_storm'],
+  katana: ['k_spirit', 'k_mikiri', 'k_iai', 'k_sakura', 'k_moon', 'k_thousand'],
+  dual: ['d_demon', 'd_shadow', 'd_blades', 'd_frenzy', 'd_venom', 'd_xcut'],
+  staff: ['s_orb', 's_meteor', 's_beam', 's_judge', 's_nova', 's_gravity'],
+  spear: ['sp_thrust', 'sp_leap', 'sp_drill', 'sp_dragon', 'sp_sweep', 'sp_rain'],
+  bow: ['b_multi', 'b_pierce', 'b_rain', 'b_storm', 'b_snipe', 'b_trap'],
+  scythe: ['sc_reap', 'sc_chain', 'sc_tide', 'sc_eclipse', 'sc_soul', 'sc_grave'],
+  fist: ['f_combo', 'f_rise', 'f_wave', 'f_burst', 'f_dash', 'f_aura'],
 };
+
+export const LOADOUT_SIZE = 4;
+/** 玩家目前這個職業帶的 4 招（沒設定過就是前 4 招） */
+export function loadoutOf(p, cls) {
+  const pool = CLASS_SKILLS[cls] ?? [];
+  const saved = (p.loadouts?.[cls] || []).filter((id) => pool.includes(id));
+  return saved.length === LOADOUT_SIZE ? saved : pool.slice(0, LOADOUT_SIZE);
+}

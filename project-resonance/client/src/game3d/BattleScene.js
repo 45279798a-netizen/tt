@@ -12,6 +12,7 @@ import { World } from './world.js';
 import { createHero, applyEquipment, animateHero, triggerSwing, addEnvironment } from './heroModel.js';
 import { castSkillFx, updateSkillFx, removeOrbitBlades } from './skills.js';
 import { createMount, animateMount, disposeMount } from './mountModel.js';
+import { getSettings, onSettings } from '../utils/settings.js';
 import { setHeroWings } from './wingModel.js';
 import { QuarksFx } from './quarksFx.js';
 import { createMonster, monsterReady } from './monsterModels.js';
@@ -79,7 +80,7 @@ export class BattleScene {
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.qfx = new QuarksFx(this.scene, (x, z) => this.gy(x, z)); // 技能特效（three.quarks）
+    this.qfx = new QuarksFx(this.scene, (x, z) => this.gy(x, z));
     this.camera = new THREE.PerspectiveCamera(40, 1, 0.5, 200);
     this.camOffset = new THREE.Vector3(0, 20, 14.5);
     this.camFocus = new THREE.Vector3();
@@ -132,6 +133,8 @@ export class BattleScene {
     this._ground();
     this._player();
     this._overlayEls();
+    this.applySettings(getSettings());
+    this.unsubSettings = onSettings((st) => this.applySettings(st));
 
     this._loop = this._loop.bind(this);
     this.ro = new ResizeObserver(() => this._resize());
@@ -356,10 +359,10 @@ export class BattleScene {
     for (const n of this.npcs) if (n.hero) applyEquipment(n.hero, n.look, items); // 裝備資料表載入後補上 NPC 外觀
   }
 
-  // ── 世界王 ─────────────────────────────
-  /** info：伺服器送來的世界王（不在這張地圖 = null） */
+  // ── 巨大首領（深淵祭壇）─────────────────────
+  /** info：伺服器送來的巨大首領（不在深淵祭壇 = null） */
   setBoss(info) {
-    if (!info || this.map?.town || this.duel) {
+    if (!info || this.map?.town || this.duel || this.map?.id !== 'boss') {
       const b = this.boss;
       if (b) {
         this.mobs = this.mobs.filter((m) => m !== b);
@@ -371,14 +374,23 @@ export class BattleScene {
     }
     if (!this.boss || this.boss.bossId !== info.id) {
       if (this.boss) { this._removeMob(this.boss); this.mobs = this.mobs.filter((m) => m !== this.boss); }
-      this.boss = this._makeBoss(info);
-      this.mobs.push(this.boss);
-      const p = this.boss.group.position;
-      this._beam(p, 3, 16, 0xff3b5c, 1.2);
-      this._wall(p, 1, 12, 2.5, 0xff3b5c, 0.9);
-      this.shake = Math.max(this.shake, 0.5);
+      const m = this._makeBoss(info);
+      // 巨大化：放大 2.2 倍，用首領突襲的三階段招式（砸地 → 星環彈幕 → 隕星雨）
+      m.giant = true; m.phase = 1; m.ringT = 3; m.meteorT = 2; m.runeT = 0; m.rings = [];
+      m.group.scale.setScalar(2.2);
+      m.radius *= 2.2;
+      m.aura.material.color.set(info.color);
+      this.boss = m;
+      this.mobs.push(m);
+      const p = m.group.position, c = new THREE.Color(info.color).getHex();
+      this.qfx.rune(p, 12, c, 2.5, 1);
+      this.qfx.beam(p, 4, 26, c, 1.4);
+      this.qfx.wall(p, 1, 16, 3.5, c, 1);
+      this.shake = Math.max(this.shake, 0.6);
     }
     this.boss.ratio = Math.max(0, info.hp / info.maxHp);
+    // 防禦：自己打出的傷害比例 = 攻擊 ÷ (攻擊 + 防禦 × K)（伺服器用同一條公式檢查）
+    this.bossDefMul = info.def ? Math.max(info.minMul ?? 0, this.player.atk / (this.player.atk + info.def * info.defK)) : 1;
   }
 
   // ── 首領突襲（組隊首領戰）─────────────────
@@ -561,7 +573,7 @@ export class BattleScene {
     g.rotation.y += dr * Math.min(1, dt * 2);
     if (m.model) m.model.mixer.update(dt);
     else m.body.position.y = 2.6 + Math.sin(m.hop * 2) * 0.2;
-    if (m.raid) this._raidPatterns(m, dt);
+    if (m.raid || m.giant) this._raidPatterns(m, dt);
     m.crown.rotation.y += dt * (this.mobShape === 'spirit' || this.mobShape === 'sentinel' ? 0.8 : 0);
     m.aura.material.opacity = 0.4 + Math.sin(m.hop * 4) * 0.2;
     m.flash = Math.max(0, m.flash - dt);
@@ -1099,6 +1111,7 @@ export class BattleScene {
   remoteFx(id, kind, x, z, ry) {
     const a = this.remotes.get(id);
     if (!a || !this.map) return;
+    if (this.settings && !this.settings.others && kind !== 'atk') return; // 設定：不顯示別人的技能特效（普攻照樣打怪）
     if (Number.isFinite(x)) {
       a.group.position.set(x, this.gy(x, z), z); // 出招時把位置對齊，特效才會在正確位置
       a.facing = ry;
@@ -1122,6 +1135,7 @@ export class BattleScene {
   }
 
   dispose() {
+    this.unsubSettings?.();
     this.qfx.dispose();
     this.stop();
     this.world?.dispose(this.scene);
@@ -1333,7 +1347,7 @@ export class BattleScene {
     const crit = Math.random() < critRate;
     const buff = (a.buffs.dmg > 0 ? 1.3 : 1) * (a.buffs.venom > 0 ? 1.4 : 1) * (a.feverTime > 0 ? 1.25 : 1);
     const bossMul = m.boss ? 1 + (this.talent?.bossDmg || 0) : 1; // 天賦「屠龍者」（只算自己的）
-    const dmg = base * buff * rand(0.85, 1.15) * (crit ? 2 : 1) * (a.local ? bossMul : 1);
+    const dmg = base * buff * rand(0.85, 1.15) * (crit ? 2 : 1) * (a.local ? bossMul : 1) * (m.giant ? this.bossDefMul ?? 1 : 1);
     if (m.dummy) { // 木人樁：只跳數字，不會壞
       m.flash = 0.12;
       if (a.local) { this._number(m.group.position, fmt(dmg), crit ? 'crit' : 'dmg', 1); this.qfx.hit(m.group.position, styleOf(a.wtype).color, crit); }
@@ -1592,6 +1606,7 @@ export class BattleScene {
   }
 
   _number(pos, text, kind, size = 1) {
+    if (this.settings && !this.settings.dmgNum && (kind === 'dmg' || kind === 'crit' || kind === 'ally' || kind === 'boss')) return;
     if (this.numbers.length > 70) {
       const old = this.numbers.shift();
       old.el.remove();
@@ -1609,8 +1624,39 @@ export class BattleScene {
   }
 
   // ── 主迴圈 ─────────────────────────────────
+  /** 畫面設定（FPS 上限、解析度、陰影、特效品質…），設定頁改了馬上生效 */
+  applySettings(st) {
+    this.settings = st;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * st.res);
+    try { this._resize?.(); } catch { /* 建構中還沒準備好 */ }
+    if (this.renderer.shadowMap.enabled !== st.shadows) {
+      this.renderer.shadowMap.enabled = st.shadows;
+      this.sun.castShadow = st.shadows;
+      this.scene.traverse((o) => { if (o.material) { for (const m of [].concat(o.material)) m.needsUpdate = true; } });
+    }
+    this.qfx.lite = st.fx === 'low';
+    this.qfx.budgetMax = this.qfx.lite ? 8 : 16;
+    this.qfx.budgetRate = this.qfx.lite ? 18 : 40;
+    this.minFrame = st.fps > 0 ? 1 / st.fps - 0.002 : 0;
+    if (!this.meterEl) {
+      this.meterEl = document.createElement('div');
+      this.meterEl.style.cssText = 'position:absolute;left:8px;bottom:6px;font:700 11px monospace;color:#9effa0;text-shadow:0 1px 2px #000;pointer-events:none';
+      this.overlay.appendChild(this.meterEl);
+    }
+    this.meterEl.style.display = st.meter ? '' : 'none';
+  }
+
   _loop() {
     if (!this.running) return;
+    this.raf = requestAnimationFrame(this._loop);
+    // FPS 上限：還沒到時間就跳過這一幀（手機省電、不燙）
+    const nowT = performance.now() / 1000;
+    if (this.minFrame && nowT - (this.lastFrameT || 0) < this.minFrame) return;
+    this.lastFrameT = nowT;
+    if (this.meterEl && this.settings?.meter) {
+      this.fpsN = (this.fpsN || 0) + 1;
+      if (nowT - (this.fpsT || 0) >= 1) { this.meterEl.textContent = `${this.fpsN} FPS`; this.fpsN = 0; this.fpsT = nowT; }
+    }
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.time += dt;
     if (this.map) this._update(dt);
@@ -1627,7 +1673,6 @@ export class BattleScene {
     }
     this._updateNumbers(dt);
     this._updateTags();
-    this.raf = requestAnimationFrame(this._loop);
   }
 
   _update(dt) {
@@ -2040,6 +2085,7 @@ export class BattleScene {
 
     // 雙劍：鬼人化紅色氣場
     a.demonTime = Math.max(0, a.demonTime - dt);
+    for (const k in a.buffs) a.buffs[k] = Math.max(0, a.buffs[k] - dt); // 毒刃等增益倒數
     const auraColor = a.demonTime > 0 ? 0xff3b3b : a.feverTime > 0 ? 0xffd166 : null;
     if (auraColor !== null) {
       a.aura.material.color.setHex(auraColor);
