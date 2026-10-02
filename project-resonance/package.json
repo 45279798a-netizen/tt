@@ -1,0 +1,18 @@
+{
+  "name": "project-resonance",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Project Resonance：緣起 — 本機私服放置型網頁 RPG",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c yellow,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run build && npm run start -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

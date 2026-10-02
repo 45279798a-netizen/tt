@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0b0a14;
+  --color-panel: #15131f;
+  --color-edge: #2a2638;
+  --color-gold: #f5c04a;
+  --color-ember: #ff7a45;
+  --color-spirit: #7dd3fc;
+  --font-sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-num: "Rajdhani", "DIN Alternate", "Bahnschrift", ui-monospace, monospace;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--color-ink);
+  color: #ece8f5;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* 浮出的擊殺數字 */
+@keyframes float-up {
+  0%   { opacity: 0; transform: translateY(6px) scale(.9); }
+  15%  { opacity: 1; transform: translateY(0) scale(1.05); }
+  100% { opacity: 0; transform: translateY(-36px) scale(1); }
+}
+.float-up { animation: float-up 1.4s ease-out forwards; }
+
+/* 戰力上升時的閃光 */
+@keyframes cp-flash {
+  0% { text-shadow: 0 0 0 transparent; }
+  30% { text-shadow: 0 0 18px var(--color-gold); }
+  100% { text-shadow: 0 0 0 transparent; }
+}
+.cp-flash { animation: cp-flash .9s ease-out; }
+
+/* 掛機中的旋轉光環 */
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 6s linear infinite; }
+
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pt-safe { padding-top: env(safe-area-inset-top); }
+
+/* 橫向瀏海 / 圓角安全區 */
+.safe-x { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+.safe-t { padding-top: max(8px, env(safe-area-inset-top)); }
+.safe-b { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.safe-r { padding-right: env(safe-area-inset-right); }
+
+@keyframes panel-in { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.panel-in { animation: panel-in .2s ease-out; }
+
+@keyframes rotate-phone { 0%, 25% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+.rotate-phone { animation: rotate-phone 2s ease-in-out infinite alternate; }
+
+/* 已安裝成 App 時禁止整頁被拖動、反白 */
+html, body { position: fixed; inset: 0; overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+input { user-select: text; -webkit-user-select: text; }
+
+/* ── 3D 戰鬥疊加層 ───────────────────────── */
+.dmg-num {
+  position: absolute; left: 0; top: 0;
+  font-family: var(--font-num); font-weight: 900; font-size: 19px; letter-spacing: .02em;
+  color: #fff8e1; white-space: nowrap; pointer-events: none; will-change: transform, opacity;
+  -webkit-text-stroke: 3px #2a1400; paint-order: stroke fill;
+  text-shadow: 0 2px 0 rgba(0,0,0,.6), 0 0 10px rgba(255,200,120,.35);
+}
+/* 暴擊：橘紅漸層、更大、上面一個小小的「暴擊」 */
+.dmg-num.crit {
+  font-size: 28px; font-style: italic; color: #ffb02e;
+  background: linear-gradient(180deg, #fff6b0 10%, #ffb02e 50%, #ff4a1c 90%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 3.5px #3a0a00; filter: drop-shadow(0 0 8px rgba(255,110,40,.75));
+}
+.dmg-num.crit::before {
+  content: '暴擊'; position: absolute; left: 50%; top: -11px; transform: translateX(-50%);
+  font-size: 10px; font-style: normal; letter-spacing: .2em; -webkit-text-stroke: 2px #3a0a00;
+  -webkit-text-fill-color: #ffe08a;
+}
+/* 打世界王：紫金色 */
+.dmg-num.boss { color: #f3d8ff; -webkit-text-stroke: 3px #2a0a3a; text-shadow: 0 0 12px rgba(200,120,255,.7); }
+.dmg-num.ally { font-size: 14px; color: #bfe6ff; -webkit-text-stroke: 2px #0a1a2a; opacity: .85; }
+.dmg-num.hurt { color: #ff6a5a; font-size: 22px; -webkit-text-stroke: 3px #3a0000; }
+.dmg-num.dmg-kill { color: #ffe08a; }
+.dmg-num.lvl  { color: var(--color-gold); font-size: 30px; letter-spacing: .08em; -webkit-text-stroke: 3px #3a2400; text-shadow: 0 0 14px rgba(245,192,74,.9); }
+
+.combo-counter {
+  position: absolute; right: max(140px, calc(env(safe-area-inset-right) + 130px)); top: 74px; text-align: right; opacity: 0;
+  transition: opacity .3s; pointer-events: none; line-height: 1;
+}
+.combo-counter b { display: block; font-family: var(--font-num); font-size: 34px; font-style: italic; color: var(--color-gold); text-shadow: 0 2px 0 #000, 0 0 14px rgba(245,192,74,.6); }
+.combo-counter span { font-size: 12px; letter-spacing: .3em; color: #fff; text-shadow: 0 1px 2px #000; }
+
+.screen-flash { --flash: 255,210,140; position: absolute; inset: 0; background: radial-gradient(circle, rgba(var(--flash),.75), rgba(var(--flash),0) 70%); opacity: 0; pointer-events: none; }
+.screen-flash.on { animation: flash-out .55s ease-out; }
+@keyframes flash-out { from { opacity: 1; } to { opacity: 0; } }
+
+.no-touch-action { touch-action: none; user-select: none; -webkit-user-select: none; }
+
+@keyframes loot-in { from { transform: translateX(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.loot-in { animation: loot-in .25s ease-out; }
+@keyframes toast-pop { from { transform: scale(.8); opacity: 0; } to { transform: none; opacity: 1; } }
+.toast-pop { animation: toast-pop .2s ease-out; }
+
+/* 傷害數字：朋友打的 */
+
+/* 朋友頭上的名字 */
+.name-tag {
+  position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.5);
+  font-size: 12px; font-weight: 700; color: #bfe6ff; text-shadow: 0 1px 2px #000;
+}
+.name-tag span { margin-left: 4px; font-weight: 500; font-size: 10px; color: rgba(255,255,255,.65); }
+
+/* PvP */
+@keyframes duel-count { from { transform: scale(1.6); opacity: 0; } 30% { opacity: 1; } to { transform: scale(1); opacity: 0; } }
+.duel-count > div { animation: duel-count 1s ease-out forwards; text-shadow: 0 4px 0 #000, 0 0 30px rgba(0,0,0,.6); }
+
+/* 村莊 NPC 名牌 */
+.npc-tag {
+  position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap;
+  padding: 3px 10px; border-radius: 999px; background: rgba(40, 28, 8, .75); border: 1px solid rgba(245,192,74,.6);
+  font-size: 12px; font-weight: 800; color: var(--color-gold); text-shadow: 0 1px 2px #000;
+}
+
+/* 小地圖 */
+.minimap {
+  position: absolute; right: max(10px, env(safe-area-inset-right)); top: 66px;
+  width: 112px; height: 112px; border-radius: 14px; pointer-events: auto; cursor: pointer;
+  border: 2px solid rgba(255,255,255,.35); box-shadow: 0 4px 14px rgba(0,0,0,.5);
+  transition: width .2s, height .2s; background: #000;
+}
+.minimap.big { width: min(300px, 70vh); height: min(300px, 70vh); }
+
+/* ── 狂熱 ───────────────────────────────── */
+.fever-bar {
+  position: absolute; right: max(140px, calc(env(safe-area-inset-right) + 130px)); top: 122px; width: 132px; height: 14px;
+  border-radius: 999px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,224,138,.35); overflow: hidden;
+  opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.fever-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #ff9a3a, #ffe08a); transition: width .15s linear; }
+.fever-bar span { position: relative; display: block; text-align: center; font-size: 10px; line-height: 13px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; letter-spacing: .1em; }
+.fever-bar.on { border-color: #ffe08a; box-shadow: 0 0 14px rgba(255,210,100,.8); animation: fever-pulse .5s ease-in-out infinite alternate; }
+.fever-bar.on i { background: linear-gradient(90deg, #ff5c2a, #ffd166, #fff3c4); }
+@keyframes fever-pulse { to { box-shadow: 0 0 22px rgba(255,210,100,1); } }
+.fever-vignette {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s;
+  box-shadow: inset 0 0 90px 20px rgba(255,190,80,.55);
+}
+.fever-vignette.on { opacity: 1; animation: fever-vig 0.8s ease-in-out infinite alternate; }
+@keyframes fever-vig { from { opacity: .65; } to { opacity: 1; } }
+.dmg-num.fever { color: #ffe08a; font-size: 34px; font-style: italic; letter-spacing: .06em; text-shadow: 0 0 16px rgba(255,190,80,1), 0 2px 0 #7a3a00; }
+
+/* ── 世界王 ─────────────────────────────── */
+.boss-bar { position: relative; height: 16px; border-radius: 6px; overflow: hidden; background: rgba(0,0,0,.65); border: 1px solid rgba(255,90,110,.7); box-shadow: 0 0 14px rgba(255,60,90,.45); }
+.boss-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #8a0f2a, #ff3b5c 60%, #ff9a7a); transition: width .3s ease-out; }
+.boss-bar span { position: relative; display: block; text-align: center; font-size: 11px; line-height: 15px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; }
+.boss-tag { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; font-weight: 900; font-size: 15px; color: #ffd0d8; text-shadow: 0 0 10px rgba(255,60,90,.9), 0 2px 0 #000; }
