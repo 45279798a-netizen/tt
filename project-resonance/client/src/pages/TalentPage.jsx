@@ -1,6 +1,6 @@
 import { fmt } from '../utils/format.js';
 
-/** 天賦樹：三條分支，每條 4 層；上一層投入夠多點才解鎖下一層 */
+/** 天賦樹：三條分支，每條 6 層；上一層投入夠多點才解鎖下一層 */
 export default function TalentPage({ player, config, onLearn, onReset }) {
   const T = config.talents, B = config.talentBranches, REQ = config.talentTierReq;
   const left = player.talentPoints - player.talentSpent;
@@ -10,7 +10,7 @@ export default function TalentPage({ player, config, onLearn, onReset }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2 text-xs">
         <span className="rounded-lg bg-gold/20 px-2 py-1 font-bold text-gold">天賦點 {left} / {player.talentPoints}</span>
-        <span className="text-white/45">每 4 級 1 點，轉職一次 +25 點（轉職後點數不會消失）</span>
+        <span className="text-white/45">每 4 級 1 點、轉職一次 +25 點、試煉之塔每 5 層 +1 點（目前 +{player.towerTalent}）</span>
         <button onClick={() => { if (window.confirm(`花 💰${fmt(player.talentResetCost)} 重置全部天賦？`)) onReset(); }}
           className="ml-auto rounded-lg border border-white/20 px-2.5 py-1 text-white/70 active:scale-95">重置（💰{fmt(player.talentResetCost)}）</button>
       </div>

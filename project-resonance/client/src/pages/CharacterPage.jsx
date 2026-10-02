@@ -111,10 +111,13 @@ function SkillsTab({ player, config, onLoadout }) {
   const cls = player.stats.wtype;
   const pool = config.classSkills[cls];
   const basic = WEAPON_STYLE[cls].basic;
-  const [pick, setPick] = useState(player.skills[cls] || pool.slice(0, 4));
-  useEffect(() => { setPick(player.skills[cls] || pool.slice(0, 4)); }, [cls, player.skills]); // eslint-disable-line react-hooks/exhaustive-deps
+  const savedKey = (player.skills[cls] || pool.slice(0, 4)).join();
+  const [pick, setPick] = useState(savedKey.split(','));
+  const [saving, setSaving] = useState(false);
+  // 只在「職業」或「已儲存的配置」真的變了才重設（每 2 秒同步都會給新陣列，舊版會把選到一半的洗掉）
+  useEffect(() => { setPick(savedKey.split(',')); }, [cls, savedKey]);
   const toggle = (id) => setPick((l) => (l.includes(id) ? l.filter((x) => x !== id) : l.length < 4 ? [...l, id] : l));
-  const dirty = pick.length === 4 && pick.join() !== (player.skills[cls] || []).join();
+  const dirty = pick.length === 4 && pick.join() !== savedKey;
 
   return (
     <div className="space-y-2">
@@ -145,9 +148,9 @@ function SkillsTab({ player, config, onLoadout }) {
           </button>
         );
       })}
-      <button disabled={!dirty} onClick={() => onLoadout?.(cls, pick)}
+      <button disabled={!dirty || saving} onClick={async () => { setSaving(true); await onLoadout?.(cls, pick); setSaving(false); }}
         className="w-full rounded-xl bg-gold py-2.5 text-sm font-bold text-ink transition active:scale-[.98] disabled:opacity-30">
-        {pick.length < 4 ? `再選 ${4 - pick.length} 招` : dirty ? '儲存技能配置' : '目前的配置'}
+        {saving ? '儲存中…' : pick.length < 4 ? `再選 ${4 - pick.length} 招` : dirty ? '儲存技能配置' : '目前的配置'}
       </button>
     </div>
   );

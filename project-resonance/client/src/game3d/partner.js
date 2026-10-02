@@ -27,14 +27,21 @@ export class Partner {
   constructor(S, def, owner, mode = 'follow', home = null, lv = 1) {
     this.S = S; this.def = def; this.owner = owner; this.mode = mode; this.home = home;
     this.lv = lv;
+    // 主題色：每位夥伴不同（米米粉色、小雪冰藍、小黑紫色…）
+    const hex = (c, d) => (c ? new THREE.Color(c).getHex() : d);
+    this.c1 = hex(def.color, PINK); this.c2 = hex(def.accent, 0xffb3d1); this.c3 = hex(def.gold, 0xffd166);
     this.dmgMul = def.dmg.base + def.dmg.per * (lv - 1);
     this.power = 1 + lv * 0.05; // 招式傷害成長
     this.skills = def.skills.filter((k) => lv >= k.unlock).map((k, i) => ({ ...k, t: 2 + i * 2.5 }));
-    this.inst = monsterReady(def.model) ? createMonster(def.model, 1.85) : null;
+    this.inst = monsterReady(def.model) ? createMonster(def.model, def.height ?? 1.85, def.model === 'troll' ? def.tint : null) : null;
     this.group = new THREE.Group();
-    if (this.inst) this.group.add(this.inst.root);
+    if (this.inst) {
+      // 同一個模型換顏色（巨魔在 createMonster 裡換皮膚，其他的把材質染色）
+      if (def.tint && def.model !== 'troll') { const t = new THREE.Color('#ffffff').lerp(new THREE.Color(def.tint), 0.55); for (const m of this.inst.mats) m.color.copy(t); }
+      this.group.add(this.inst.root);
+    }
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.68, 32).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.6, depthWrite: false }));
+      new THREE.MeshBasicMaterial({ color: this.c1, transparent: true, opacity: 0.6, depthWrite: false }));
     ring.position.y = 0.04;
     this.ring = ring;
     this.group.add(ring);
@@ -52,9 +59,9 @@ export class Partner {
 
   _poof() {
     const p = this.group.position;
-    this.S.qfx.flash(p, 2.4, PINK, 0.35, 0.9);
-    this.S.qfx.petals(p, 10, 0xffb3d1, 4);
-    this.S.qfx.shock(p, 1.8, PINK, 0.35);
+    this.S.qfx.flash(p, 2.4, this.c1, 0.35, 0.9);
+    this.S.qfx.petals(p, 10, this.c2, 4);
+    this.S.qfx.shock(p, 1.8, this.c1, 0.35);
   }
 
   update(dt) {
@@ -121,8 +128,8 @@ export class Partner {
     g.rotation.y += dr * Math.min(1, dt * 10);
     if (this.inst) {
       const run = moving && speed > 4;
-      this.inst.play(run ? 'Running' : 'Walking');
-      this.inst.current.timeScale = moving ? (run ? 1 : 0.9) : 0.12;
+      this.inst.play(run ? (this.inst.actions.Running ? 'Running' : 'RunFast') : 'Walking'); // 吸血鬼模型的跑步叫 RunFast
+      if (this.inst.current) this.inst.current.timeScale = moving ? (run ? 1 : 0.9) : 0.12;
       this.inst.mixer.update(dt);
       this.inst.root.position.y = this.hop > 0 ? Math.sin((1 - this.hop / 0.25) * Math.PI) * 0.35 : 0;
       this.hop = Math.max(0, (this.hop || 0) - dt);
@@ -141,16 +148,17 @@ export class Partner {
       this.atkT = 0.75;
       this.hop = 0.25;
       this.flip = !this.flip;
-      Q.crescent(p, this.facing + (this.flip ? 0.4 : -0.4), 2.6, PINK, 0.2, { arc: 2.4, sweep: this.flip ? 2 : -2, tilt: this.flip ? 0.5 : -0.5, y: 0.8 });
-      Q.sparks(t.group.position, 3, 0xffb3d1, 4, 0.3);
+      Q.crescent(p, this.facing + (this.flip ? 0.4 : -0.4), 2.6, this.c1, 0.2, { arc: 2.4, sweep: this.flip ? 2 : -2, tilt: this.flip ? 0.5 : -0.5, y: 0.8 });
+      Q.sparks(t.group.position, 3, this.c2, 4, 0.3);
       if (this.local) S._damageArea(this.owner, p, 2.6, b * 0.75);
     }
     // 招式：大招優先
     for (const k of [...this.skills].reverse()) {
       if (k.t > 0) continue;
       k.t = k.cd;
-      if (k.id === 'goddess') this._goddess(b, k);
-      else if (k.id === 'meteor') this._meteor(b, k);
+      const kind = k.kind ?? (k.id === 'goddess' ? 'ult' : k.id === 'meteor' ? 'meteor' : 'area');
+      if (kind === 'ult') this._goddess(b, k);
+      else if (kind === 'meteor') this._meteor(b, k);
       else this._skill(b, k);
       break;
     }
@@ -159,14 +167,14 @@ export class Partner {
   /** 流星貓拳：鎖定附近最多 6 隻怪，流星一顆顆砸下 */
   _meteor(b, k) {
     const S = this.S, Q = S.qfx, p = this.group.position;
-    Q.rune(p, 2.5, 0xffd166, 0.8, 5);
-    Q.flash(p, 2.4, 0xffd166, 0.3, 1.8);
+    Q.rune(p, 2.5, this.c3, 0.8, 5);
+    Q.flash(p, 2.4, this.c3, 0.3, 1.8);
     this.hop = 0.25;
     const targets = S.mobs.filter((m) => m.alive && flat(m.group.position, p) < 10).slice(0, k.hits);
     while (targets.length < k.hits) targets.push({ group: { position: { x: p.x + rand(-5, 5), z: p.z + rand(-5, 5) } } });
     targets.forEach((m, i) => S._later(0.1 + i * 0.13, () => {
       const at = { x: m.group.position.x, z: m.group.position.z };
-      Q.meteor(at, i % 2 ? PINK : 0xffd166, () => {
+      Q.meteor(at, i % 2 ? this.c1 : this.c3, () => {
         if (this.local) S._damageArea(this.owner, at, k.radius, b * k.mult * this.power);
         if (this.local && i === 0) S.shake = Math.max(S.shake, 0.2);
       });
@@ -177,20 +185,20 @@ export class Partner {
   _goddess(b, k) {
     const S = this.S, Q = S.qfx;
     const c0 = { x: this.group.position.x, z: this.group.position.z };
-    Q.rune(c0, k.radius, 0xffd166, 1.4, 1.5);
-    Q.rune(c0, k.radius * 0.55, PINK, 1.4, -3);
-    Q.converge(c0, 30, 0xfff1c4, 5, 0.55, 1);
-    Q.beam(c0, 1.4, 14, 0xffd166, 0.9);
+    Q.rune(c0, k.radius, this.c3, 1.4, 1.5);
+    Q.rune(c0, k.radius * 0.55, this.c1, 1.4, -3);
+    Q.converge(c0, 30, this.c3, 5, 0.55, 1);
+    Q.beam(c0, 1.4, 14, this.c3, 0.9);
     this.hop = 0.25;
     S._later(0.6, () => {
       const c = this.group.position;
-      Q.flash(c, 10, 0xffd166, 0.55, 1.2);
-      Q.light(c, 0xffd166, 70, 0.8, 26, 2);
-      Q.shock(c, k.radius + 1, 0xfff1c4, 0.6);
-      Q.shock(c, k.radius * 0.6, PINK, 0.45);
-      Q.wall(c, 0.5, k.radius, 2, 0xffd166, 0.6);
-      Q.petals(c, this.local ? 50 : 20, 0xffb3d1, 10);
-      Q.embers(c, 30, 0xffd166, k.radius * 0.7, 1.8);
+      Q.flash(c, 10, this.c3, 0.55, 1.2);
+      Q.light(c, this.c3, 70, 0.8, 26, 2);
+      Q.shock(c, k.radius + 1, this.c3, 0.6);
+      Q.shock(c, k.radius * 0.6, this.c1, 0.45);
+      Q.wall(c, 0.5, k.radius, 2, this.c3, 0.6);
+      Q.petals(c, this.local ? 50 : 20, this.c2, 10);
+      Q.embers(c, 30, this.c3, k.radius * 0.7, 1.8);
       Q.feathers(c, 10, 0xffffff, 2.2);
       if (this.local) {
         S._damageArea(this.owner, c, k.radius, b * k.mult * this.power);
@@ -205,21 +213,21 @@ export class Partner {
   _skill(b, def) {
     const S = this.S, Q = S.qfx;
     const p = { x: this.group.position.x, z: this.group.position.z };
-    Q.rune(p, def.radius * 0.8, PINK, 1, 4);
-    Q.converge(p, 16, 0xffd1e6, 2.5, 0.3, 0.9);
+    Q.rune(p, def.radius * 0.8, this.c1, 1, 4);
+    Q.converge(p, 16, this.c2, 2.5, 0.3, 0.9);
     [0, 1, 2].forEach((i) => S._later(0.15 + i * 0.12, () => {
       const c = this.group.position;
       this.hop = 0.25;
-      Q.crescent(c, this.facing + i * 2.1, def.radius, i === 2 ? 0xffffff : PINK, 0.28, { arc: 3.2, sweep: 3, tilt: [-0.5, 0.4, 0][i], y: 0.8 });
-      Q.sparks(c, 6, 0xffb3d1, 8, 0.4);
+      Q.crescent(c, this.facing + i * 2.1, def.radius, i === 2 ? 0xffffff : this.c1, 0.28, { arc: 3.2, sweep: 3, tilt: [-0.5, 0.4, 0][i], y: 0.8 });
+      Q.sparks(c, 6, this.c2, 8, 0.4);
     }));
     S._later(0.5, () => {
       const c = this.group.position;
-      Q.flash(c, 4, PINK, 0.4, 0.9);
-      Q.light(c, PINK, 35, 0.45, 14);
-      Q.shock(c, def.radius + 0.5, 0xffb3d1, 0.45);
-      Q.petals(c, this.local ? 24 : 10, 0xffb3d1, 7);
-      Q.embers(c, 12, PINK, 2, 1.3);
+      Q.flash(c, 4, this.c1, 0.4, 0.9);
+      Q.light(c, this.c1, 35, 0.45, 14);
+      Q.shock(c, def.radius + 0.5, this.c2, 0.45);
+      Q.petals(c, this.local ? 24 : 10, this.c2, 7);
+      Q.embers(c, 12, this.c1, 2, 1.3);
       if (this.local) S._damageArea(this.owner, c, def.radius, b * def.mult * this.power);
     });
   }

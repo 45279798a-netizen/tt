@@ -9,6 +9,7 @@
 //    買坐騎、孵蛋、轉職、加天賦、去下一區
 //  - 加 AI 玩家好友會在幾秒後自動接受；找他們決鬥會被婉拒
 // ─────────────────────────────────────────────
+import { botMarketTick } from './market.js';
 import { MAP_DEFS } from '../../client/src/game3d/maps.js';
 import { MAPS, calcStats, calcCP, calcRates } from './formulas.js';
 import { ITEMS, SLOTS, SETS, WEAPON_TYPES } from './items.js';
@@ -287,7 +288,7 @@ export function startBots() {
       try {
         move(p, b, dt, t);
         if (t - b.settleT > 2000) { b.settleT = t; earn(p, b, t); }
-        if (t > b.thinkT) { b.thinkT = t + rand(45, 90) * 1000; think(p); }
+        if (t > b.thinkT) { b.thinkT = t + rand(45, 90) * 1000; think(p); if (Math.random() < 0.25) botMarketTick(p); }
       } catch (e) { console.warn('[AI 玩家]', p.name, e.message); }
     }
   }, 200);

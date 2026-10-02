@@ -11,6 +11,8 @@ import BagPage from './pages/BagPage.jsx';
 import CharacterPage from './pages/CharacterPage.jsx';
 import ForgePage from './pages/ForgePage.jsx';
 import BossPage from './pages/BossPage.jsx';
+import TowerPage from './pages/TowerPage.jsx';
+import MarketPage from './pages/MarketPage.jsx';
 import FriendsPage from './pages/FriendsPage.jsx';
 import PortalPage from './pages/PortalPage.jsx';
 import StablePage from './pages/StablePage.jsx';
@@ -60,10 +62,12 @@ export default function App() {
       tavern: <PartnerPage player={player} config={config} atTavern onRecruit={game.doRecruitPartner} onDeploy={game.doDeployPartner} onUpgrade={game.doUpgradePartner} />,
       // 村莊 NPC
       smith: player.inTown
-        ? <ForgePage player={player} config={config} onCraft={game.doCraft} onEnhance={game.doEnhance} onReroll={game.doReroll} onEquip={game.doEquip} />
+        ? <ForgePage player={player} config={config} onCraft={game.doCraft} onCraftMany={game.doCraftMany} onCraftMissing={game.doCraftMissing} onEnhance={game.doEnhance} onEnhanceMany={game.doEnhanceMany} onReroll={game.doReroll} onEquip={game.doEquip} onSynth={game.doSynth} onDismantle={game.doDismantle} />
         : <p className="p-6 text-center text-sm text-white/50">鍛造師在村莊裡，先回村莊吧</p>,
       stable: <StablePage player={player} config={config} onBuy={game.doBuyMount} onUpgrade={game.doUpgradeMount} onEquip={game.doEquipMount} />,
-      portal: <PortalPage player={player} config={config} onGo={async (id) => { if (await game.doChangeMap(id)) close(); }} onField={async () => { if (await game.doGoField()) close(); }} onBoss={async () => { if (await game.doGoBoss()) close(); }} />,
+      portal: <PortalPage player={player} config={config} onGo={async (id) => { if (await game.doChangeMap(id)) close(); }} onField={async () => { if (await game.doGoField()) close(); }} onBoss={async () => { if (await game.doGoBoss()) close(); }} onTower={async () => { if (await game.doTowerStart()) close(); }} />,
+      market: <MarketPage player={player} config={config} onList={game.doMarketList} onCancel={game.doMarketCancel} onBuy={game.doMarketBuy} />,
+      tower: <TowerPage player={player} onStart={async () => { if (await game.doTowerStart()) close(); }} />,
       boss: <BossGate player={player} config={config} onGo={async () => { if (await game.doGoBoss()) close(); }} />,
       field: <FieldGate player={player} config={config} onGo={async () => { if (await game.doGoField()) close(); }} />,
     };
@@ -73,12 +77,13 @@ export default function App() {
         <BattlePage
           player={player} config={config} events={game.events}
           active={!portrait} killsPerMin={game.killsPerMin} pushEvent={game.pushEvent} onTrialStart={game.doTrialStart} onTrialEnd={game.doTrialEnd} onRaidStart={game.doRaidStart} onChangeMap={game.doChangeMap} onGoTown={game.doGoTown} onGoBoss={game.doGoBoss}
+          onTowerStart={game.doTowerStart} onTowerClear={game.doTowerClear} onTowerFail={game.doTowerFail}
           onNpc={(id) => setPanel(id)}
           topLeft={<HudPlayer player={player} online={game.online} />}
           topRight={<MenuBar open={panel} onOpen={(id) => setPanel(panel === id ? null : id)} pwa={pwa} admin={player.admin} badges={{ friends: player.friendReqs, bag: player.inv.filter((x) => x.delta > 0).length, quest: player.badges.daily + player.badges.achieve, talent: player.badges.talent }} />}
         />
         {panel && pages[panel] && (
-          <SidePanel title={title} wide={['char', 'smith', 'bag', 'stable', 'tavern', 'partner', 'manor', 'pet', 'admin', 'talent', 'quest'].includes(panel)} onClose={close}>
+          <SidePanel title={title} wide={['char', 'smith', 'bag', 'stable', 'tavern', 'partner', 'manor', 'pet', 'admin', 'talent', 'quest', 'market'].includes(panel)} onClose={close}>
             {pages[panel]}
           </SidePanel>
         )}
@@ -127,7 +132,7 @@ function BossGate({ player, onGo }) {
   const b = player.worldBoss || {};
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  const eff = b.alive ? player.stats.atk / (player.stats.atk + b.def * b.defK) : 0;
+  const eff = b.alive ? Math.max(b.minMul ?? 0, player.stats.atk / (player.stats.atk + b.def * (1 - (player.stats.talent?.defIgnore || 0)) * b.defK)) : 0;
   const left = Math.max(0, Math.ceil(((b.next || 0) - now) / 1000));
   return (
     <div className="space-y-3 p-4 text-sm">
@@ -144,7 +149,7 @@ function BossGate({ player, onGo }) {
       ) : (
         <div className="rounded-xl bg-white/5 p-3 text-center">首領沉睡中，<b className="num text-gold">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</b> 後甦醒</div>
       )}
-      <p className="text-xs leading-relaxed text-white/55">首領的<b>血量</b>是依照所有玩家（含 AI 玩家）的秒傷總和算的，<b>防禦</b>是大家攻擊力的平均；你的攻擊越高，被防禦擋掉的越少（上面的「破防」）。血量不會重置，大家陸續上線一起把它磨倒；倒下時依傷害比例發獎勵（依你自己的進度換算），前 3 名必得寵物蛋。</p>
+      <p className="text-xs leading-relaxed text-white/55">首領的<b>血量</b>是依照所有玩家（含 AI 玩家）的秒傷總和算的，<b>防禦</b>是大家攻擊力的中位數；你的攻擊越高，被防禦擋掉的越少（上面的「破防」）。血量不會重置，大家陸續上線一起把它磨倒；倒下時依傷害比例發獎勵（依你自己的進度換算），前 3 名必得寵物蛋。</p>
       <button disabled={!b.alive} onClick={onGo} className="w-full rounded-xl bg-red-500 py-3 font-bold active:scale-[.98] disabled:opacity-40">👑 前往深淵祭壇討伐</button>
     </div>
   );

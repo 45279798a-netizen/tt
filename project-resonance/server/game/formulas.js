@@ -9,6 +9,7 @@ import { wingStats } from './wings.js';
 import { petStats } from './pets.js';
 import { rebirthBonus, rebirthOf, REBIRTH_EXP_MUL } from './rebirth.js';
 import { talentStats } from './talents.js';
+import { partnerPassive } from './partners.js';
 import { achieveBonus } from './achieve.js';
 
 // 目前 3 張狩獵地圖（地形設計在 client/src/game3d/maps.js）
@@ -75,7 +76,7 @@ export function calcStats(p) {
   aff.dropPct += ws.dropPct;
   // 寵物：出戰中的寵物加成
   const ps = petStats(p);
-  aff.atkPct += ps.atkPct; aff.goldPct += ps.goldPct; aff.dropPct += ps.dropPct; aff.expPct += ps.expPct;
+  aff.atkPct += ps.atkPct; aff.goldPct += ps.goldPct; aff.dropPct += ps.dropPct; aff.expPct += ps.expPct; aff.hpPct += ps.hpPct; aff.critRate += ps.critRate; aff.critDmg += ps.critDmg;
   // 轉職：永久加成
   const rb = rebirthBonus(rebirthOf(p));
   aff.atkPct += rb.atkPct; aff.hpPct += rb.hpPct; aff.critRate += rb.critRate; aff.critDmg += rb.critDmg; aff.expPct += rb.expPct;
@@ -84,6 +85,9 @@ export function calcStats(p) {
   const ab = achieveBonus(p);
   for (const k of ['atkPct', 'hpPct', 'defPct', 'critRate', 'critDmg', 'goldPct', 'expPct', 'dropPct']) aff[k] += ts[k] || 0;
   aff.atkPct += ab; aff.hpPct += ab;
+  // 夥伴被動（帶出門的那位）
+  const pp = partnerPassive(p);
+  for (const k of ['atkPct', 'hpPct', 'defPct', 'critRate', 'critDmg']) aff[k] += pp[k] || 0;
 
   const w = eq.weapon;
   const wt = w ? ITEMS[w.base] : ITEMS.starter_weapon;
@@ -114,9 +118,9 @@ export function calcStats(p) {
     atk, def, hp, dps, wtype: type.id,
     critRate, critDmg, goldPct: aff.goldPct, expPct: aff.expPct, dropPct: aff.dropPct,
     mountSpeed: ms.speed * (1 + (ts.mountSpeed || 0)),
-    rebirth: rebirthOf(p), skillMul: 1 + rb.skillDmg + (ts.skillDmg || 0), cdr: Math.min(0.5, rb.cdr + (ts.cdr || 0)),
+    rebirth: rebirthOf(p), skillMul: 1 + rb.skillDmg + (ts.skillDmg || 0) + (pp.skillDmg || 0), cdr: Math.min(0.5, rb.cdr + (ts.cdr || 0)),
     // 前端用的天賦效果：狂熱秒數、首領傷害、暈眩減免、狂熱累積
-    talent: { feverTime: (ts.feverTime || 0) * 100, bossDmg: ts.bossDmg || 0, stun: ts.stun || 0, feverGain: ts.feverGain || 0 },
+    talent: { feverTime: (ts.feverTime || 0) * 100, bossDmg: ts.bossDmg || 0, stun: Math.min(0.75, ts.stun || 0), feverGain: ts.feverGain || 0, defIgnore: Math.min(0.5, ts.defIgnore || 0), towerDmg: ts.towerDmg || 0, tradeFee: ts.tradeFee || 0 },
   };
 }
 

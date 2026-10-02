@@ -24,6 +24,7 @@ export default function SettingsPage() {
           return <button key={id} onClick={() => setSettings(v)} className="flex-1 rounded-xl border border-gold/40 bg-gold/10 px-3 py-2 text-sm font-bold text-gold active:scale-95">{label}</button>;
         })}
       </div>
+      <Row label="視角距離" hint="拉遠看得比較廣，拉近角色比較大">{[[0.75, '近'], [1, '標準'], [1.25, '遠'], [1.5, '最遠']].map(([v, t]) => <Opt key={v} k="cam" v={v}>{t}</Opt>)}</Row>
       <Row label="畫面更新（FPS 上限）" hint="越低越省電、手機越不燙">{[30, 45, 60, 0].map((v) => <Opt key={v} k="fps" v={v}>{v || '不限'}</Opt>)}</Row>
       <Row label="解析度" hint="降低會糊一點，但卡頓的手機會順很多">{[0.5, 0.75, 1].map((v) => <Opt key={v} k="res" v={v}>{v * 100}%</Opt>)}</Row>
       <Row label="陰影" hint="關掉可以大幅減少手機負擔"><Toggle k="shadows" /></Row>

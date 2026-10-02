@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────
 // 寵物：孵蛋取得、跟在身邊、提供被動加成
-//  - 寵物蛋：世界王 / 首領突襲 / 魔物潮（擊殺夠多）會掉，也可以用金幣買
+//  - 寵物蛋：巨大首領 / 首領突襲 / 魔物潮（擊殺夠多）/ 試煉之塔（每 10 層）會掉，也可以用金幣買
+//  - v0.6：6 隻 → 15 隻（新增生命、暴擊率、暴擊傷害類加成）
 //  - 孵化隨機出一隻（依稀有度）；重複的會「升星」（每星加成 +20%，最多 5 星）
 //  - 餵養：金幣 + 精華升級，最高 Lv.20
 //  - 出戰中的寵物才有加成；外觀與特效在 client/src/game3d/pet.js
@@ -16,6 +17,16 @@ export const PETS = {
   owl:       { id: 'owl',       name: '機械貓頭鷹', icon: '🦉', rarity: 2, weight: 14, color: '#c9a06a', accent: '#7df9ff', bonus: { atkPct: [3, 0.3] } },
   babydragon:{ id: 'babydragon',name: '小龍崽',   icon: '🐲', rarity: 3, weight: 6,  color: '#5ee08a', accent: '#ffd166', bonus: { atkPct: [5, 0.45], goldPct: [4, 0.4] } },
   phoenixling:{ id: 'phoenixling', name: '小鳳凰', icon: '🐥', rarity: 3, weight: 2, color: '#ff5a1f', accent: '#ffe08a', bonus: { atkPct: [6, 0.5], dropPct: [5, 0.5] } },
+  // ── v0.6 新寵物 ──
+  slime:     { id: 'slime',     name: '果凍史萊姆', icon: '🟢', rarity: 1, weight: 28, color: '#6fe36a', accent: '#d8ffb0', bonus: { expPct: [4, 0.4], goldPct: [2, 0.2] } },
+  turtle:    { id: 'turtle',    name: '苔蘚小龜',   icon: '🐢', rarity: 1, weight: 26, color: '#7aa85a', accent: '#c9a66b', bonus: { hpPct: [6, 0.6] } },
+  penguin:   { id: 'penguin',   name: '冰晶企鵝',   icon: '🐧', rarity: 1, weight: 26, color: '#2e3a52', accent: '#9be7ff', bonus: { goldPct: [5, 0.45] } },
+  bat:       { id: 'bat',       name: '夜行小蝙蝠', icon: '🦇', rarity: 2, weight: 14, color: '#4a3a6a', accent: '#ff5a7a', bonus: { critRate: [1.5, 0.12] } },
+  ghost:     { id: 'ghost',     name: '南瓜幽靈',   icon: '🎃', rarity: 2, weight: 14, color: '#ff9a3a', accent: '#b98cff', bonus: { goldPct: [4, 0.4], dropPct: [4, 0.4] } },
+  golem:     { id: 'golem',     name: '水晶魔像',   icon: '💎', rarity: 2, weight: 12, color: '#7ab8ff', accent: '#e0f4ff', bonus: { hpPct: [5, 0.45], atkPct: [2, 0.2] } },
+  unicorn:   { id: 'unicorn',   name: '迷你獨角獸', icon: '🦄', rarity: 2, weight: 10, color: '#fff4fb', accent: '#ff9ad5', bonus: { dropPct: [5, 0.45], expPct: [4, 0.4] } },
+  kirin:     { id: 'kirin',     name: '麒麟寶寶',   icon: '🦌', rarity: 3, weight: 3,  color: '#ffd166', accent: '#5ee0c8', bonus: { atkPct: [5, 0.45], critDmg: [8, 0.8] } },
+  starwhale: { id: 'starwhale', name: '星辰小鯨',   icon: '🐋', rarity: 3, weight: 1.5, color: '#3a5ab8', accent: '#ffe7a0', bonus: { atkPct: [4, 0.4], goldPct: [4, 0.4], expPct: [4, 0.4] } },
 };
 
 export function petBonus(id, lv, star = 0) {
@@ -27,7 +38,7 @@ export function petBonus(id, lv, star = 0) {
 }
 
 export function petStats(p) {
-  const s = { atkPct: 0, goldPct: 0, dropPct: 0, expPct: 0 };
+  const s = { atkPct: 0, goldPct: 0, dropPct: 0, expPct: 0, hpPct: 0, critRate: 0, critDmg: 0 };
   const own = p.pet && p.pets?.[p.pet];
   if (own) for (const [k, v] of Object.entries(petBonus(p.pet, own.lv, own.star))) s[k] += v;
   return s;

@@ -97,7 +97,7 @@ export function GearDetail({ inst, config, compact = false }) {
 export const SORTS = [['power', '戰力'], ['delta', '提升'], ['set', '階級'], ['grade', '品質']];
 
 /** 背包裡的裝備清單（可依部位篩選、排序） */
-export function GearPicker({ player, config, selected, onSelect, filter, sort = 'power' }) {
+export function GearPicker({ player, config, selected, onSelect, filter, sort = 'power', picked = null }) {
   const worn = new Set(Object.values(player.equipped));
   const key = {
     power: (a, b) => (b.power ?? 0) - (a.power ?? 0),
@@ -112,7 +112,10 @@ export function GearPicker({ player, config, selected, onSelect, filter, sort = 
   return (
     <div className="flex flex-wrap gap-2 pt-1">
       {list.map((it) => (
-        <GearTile key={it.uid} inst={it} config={config} selected={selected === it.uid} worn={worn.has(it.uid)} onClick={() => onSelect(it.uid)} />
+        <div key={it.uid} className="relative">
+          <GearTile inst={it} config={config} selected={picked ? picked.has(it.uid) : selected === it.uid} worn={worn.has(it.uid)} onClick={() => onSelect(it.uid)} />
+          {picked?.has(it.uid) && <span className="pointer-events-none absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-red-500 text-[10px] font-bold">✓</span>}
+        </div>
       ))}
     </div>
   );

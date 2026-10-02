@@ -19,7 +19,8 @@ import {
   rollItem, enhanceCap, enhanceCost, rerollCost, dismantleYield, reroll, INV_LIMIT,
 } from './gear.js';
 import { CLASS_SKILLS, loadoutOf, LOADOUT_SIZE } from './skills.js';
-import { TALENTS, learnTalent, talentPoints, spentPoints, autoTalents } from './talents.js';
+import { TALENTS, learnTalent, talentPoints, spentPoints, autoTalents, migrateTalents, towerTalentPoints } from './talents.js';
+import { towerView } from './tower.js';
 import { ensureDaily, dailyAdd, dailyView, questReward, chestReward } from './daily.js';
 import { ACHIEVEMENTS, achieveView, achieveReward, achieveClaimable } from './achieve.js';
 import { REBIRTH_LV, rebirthOf, rebirthNext, rebirthBonus, titleOf, REBIRTH_COLORS } from './rebirth.js';
@@ -92,6 +93,10 @@ function migrate(p) {
   p.inField ??= false;   // 在村莊南邊的「緣起獵場」（mapId = 自己最遠的地圖，強度跟著自己）
   p.inBoss ??= false;    // 在「深淵祭壇」打巨大首領
   p.talents ||= {};      // 天賦樹 { id: 等級 }
+  migrateTalents(p);     // v0.6 天賦樹擴充：舊等級換算
+  p.inTower ??= false;   // 在「試煉之塔」挑戰中
+  p.towerBest ??= 0;     // 試煉之塔最高通關樓層
+  p.tower ??= null;      // 目前挑戰中的樓層 { floor, start, endsAt }
   p.ach ||= { claimed: {}, points: 0 }; // 成就
   delete p.skills; // 技能改成每職業固定，不再存玩家配置
   p.friends ||= [];
@@ -320,7 +325,7 @@ export function settle(p, report = null, now = Date.now()) {
   const cap = Math.ceil(kps * elapsed * KILL_SLACK) + ELITE_VALUE;
   const normal = Math.max(0, Math.floor(Number(report.kills) || 0));
   const elite = Math.max(0, Math.floor(Number(report.elites) || 0));
-  const value = Math.min(normal + elite * ELITE_VALUE, cap);
+  const value = p.inTower ? 0 : Math.min(normal + elite * ELITE_VALUE, cap); // 試煉之塔的怪不算一般擊殺（獎勵在通關時發）
   if (value <= 0) return result;
 
   const map = MAPS[p.mapId];
@@ -389,6 +394,28 @@ export function craft(p, base) {
   return inst;
 }
 
+/** 一次鍛造好幾件（最多 10 件；素材 / 金幣 / 背包不夠就做到哪算到哪） */
+export function craftMany(p, base, times = 1) {
+  const n = Math.max(1, Math.min(10, Math.floor(Number(times) || 1)));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    try { out.push(craft(p, base)); } catch (e) { if (!out.length) throw e; break; }
+  }
+  return { items: out };
+}
+
+/** 把目前地圖的套裝缺的部位各做一件（圖鑑沒有的才做） */
+export function craftMissing(p, set) {
+  const s = Math.min(Number(set) || 0, p.maxMap);
+  const bases = Object.values(ITEMS).filter((t) => t.set === s && (t.slot !== 'weapon' || t.wtype === calcStats(p).wtype) && !p.codex.includes(t.id));
+  if (!bases.length) throw new GameError('這一套的部位都做過了');
+  const out = [];
+  let err = null;
+  for (const t of bases) { try { out.push(craft(p, t.id)); } catch (e) { err = e; } }
+  if (!out.length) throw err ?? new GameError('素材不足');
+  return { items: out, skipped: bases.length - out.length };
+}
+
 export function equip(p, uid) {
   const it = findInst(p, uid);
   p.equipped[ITEMS[it.base].slot] = uid;
@@ -410,6 +437,17 @@ export function enhanceItem(p, uid) {
   dailyAdd(p, 'enhance');
   scheduleSave();
   return it;
+}
+
+/** 連續強化 times 次（0 = 強化到上限 / 資源用完為止） */
+export function enhanceMany(p, uid, times = 1) {
+  const max = Number(times) > 0 ? Math.min(100, Math.floor(Number(times))) : 100;
+  const it = findInst(p, uid);
+  const from = it.lv;
+  for (let i = 0; i < max; i++) {
+    try { enhanceItem(p, uid); } catch (e) { if (it.lv === from) throw e; break; }
+  }
+  return { uid, from, to: it.lv };
 }
 
 /** 洗鍊：附加屬性全部重骰 */
@@ -550,6 +588,7 @@ export function recruitPartner(p, id) {
   if (!d) throw new GameError('沒有這位夥伴');
   if (!p.inTown) throw new GameError('要在村莊的酒館才能招募夥伴');
   if (p.partners[id]) throw new GameError('已經是你的夥伴了');
+  if ((p.maxMap || 0) < (d.reqMap || 0)) throw new GameError(`要先到過「${MAPS[d.reqMap].name}」才能招募`);
   payCost(p, d.cost);
   p.partners[id] = { at: Date.now(), lv: 1 };
   scheduleSave();
@@ -900,7 +939,7 @@ export function friendList(p, isOnline) {
     return {
       id, name: f.name, level: f.level, cp: calcCP(calcStats(f)), pvp: f.pvp,
       online: isOnline(id), inTown: f.inTown, mapId: f.mapId,
-      where: f.inTown ? '村莊' : f.inField ? '緣起獵場' : f.inBoss ? '深淵祭壇' : MAPS[f.mapId]?.name, bot: !!f.bot,
+      where: f.inTown ? '村莊' : f.inField ? '緣起獵場' : f.inBoss ? '深淵祭壇' : f.inTower ? '試煉之塔' : MAPS[f.mapId]?.name, bot: !!f.bot,
     };
   };
   return {
@@ -916,6 +955,7 @@ export function travelToFriend(p, id) {
   if (f.inTown) return enterTown(p);
   if (f.inField) return enterField(p);
   if (f.inBoss) return enterBoss(p);
+  if (f.inTower) throw new GameError('對方在試煉之塔（單人挑戰）');
   if (f.mapId > p.maxMap) throw new GameError(`你還沒解鎖「${MAPS[f.mapId].name}」`);
   changeMap(p, f.mapId);
 }
@@ -925,6 +965,7 @@ export function enterTown(p) {
   p.inTown = true;
   p.inField = false;
   p.inBoss = false;
+  p.inTower = false; p.tower = null;
   scheduleSave();
 }
 
@@ -971,6 +1012,7 @@ export function changeMap(p, mapId) {
   p.inTown = false;
   p.inField = false;
   p.inBoss = false;
+  p.inTower = false; p.tower = null;
   scheduleSave();
 }
 
@@ -980,6 +1022,7 @@ export function enterField(p) {
   p.inTown = false;
   p.inField = true;
   p.inBoss = false;
+  p.inTower = false; p.tower = null;
   scheduleSave();
 }
 
@@ -989,6 +1032,7 @@ export function enterBoss(p) {
   p.inTown = false;
   p.inField = false;
   p.inBoss = true;
+  p.inTower = false; p.tower = null;
   p.lastBossHit = Date.now();
   scheduleSave();
 }
@@ -1039,7 +1083,8 @@ export function snapshot(p) {
     equipped: p.equipped,
     gear: gearOf(p),
     codex: p.codex,
-    inTown: p.inTown, inField: !!p.inField, inBoss: !!p.inBoss,
+    inTown: p.inTown, inField: !!p.inField, inBoss: !!p.inBoss, inTower: !!p.inTower,
+    tower: towerView(p), towerTalent: towerTalentPoints(p),
     skills: Object.fromEntries(Object.keys(CLASS_SKILLS).map((c) => [c, loadoutOf(p, c)])), // 每個職業目前帶的 4 招
     friendReqs: p.friendReqs.length,
     setBonus: setBonus(Object.values(gearOf(p))),
@@ -1090,7 +1135,7 @@ export function publicInfo(id) {
     id: p.id, name: p.name, level: p.level, mapId: p.mapId,
     rebirth: rebirthOf(p), title: titleOf(p, stats.wtype), skillMul: stats.skillMul,
     equipped: gearOf(p), atk: stats.atk, dps: stats.dps, wtype: stats.wtype,
-    cp: calcCP(stats), pvp: p.pvp, zone: p.inTown ? -1 : p.inField ? 'F' : p.inBoss ? 'B' : p.mapId, inTown: p.inTown, inField: !!p.inField, bot: !!p.bot,
+    cp: calcCP(stats), pvp: p.pvp, zone: p.inTown ? -1 : p.inField ? 'F' : p.inBoss ? 'B' : p.inTower ? `T:${p.id}` : p.mapId, inTown: p.inTown, inField: !!p.inField, bot: !!p.bot,
     mount: p.mount, mountSpeed: stats.mountSpeed,
     wing: p.wing, wingLv: p.wing ? p.wings[p.wing]?.lv ?? 1 : 0,
     pet: p.pet, petLv: p.pet ? p.pets[p.pet]?.lv ?? 1 : 0,

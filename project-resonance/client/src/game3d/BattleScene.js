@@ -390,7 +390,7 @@ export class BattleScene {
     }
     this.boss.ratio = Math.max(0, info.hp / info.maxHp);
     // 防禦：自己打出的傷害比例 = 攻擊 ÷ (攻擊 + 防禦 × K)（伺服器用同一條公式檢查）
-    this.bossDefMul = info.def ? Math.max(info.minMul ?? 0, this.player.atk / (this.player.atk + info.def * info.defK)) : 1;
+    this.bossDefMul = info.def ? Math.max(info.minMul ?? 0, this.player.atk / (this.player.atk + info.def * (1 - (this.talent?.defIgnore || 0)) * info.defK)) : 1;
   }
 
   // ── 首領突襲（組隊首領戰）─────────────────
@@ -673,6 +673,51 @@ export class BattleScene {
     }
   }
 
+  // ── 試煉之塔（每層 60 秒打倒全部怪 + 守衛）──────
+  // info：{ floor, endsAt, count, guardMul }（怪物血量在 map.monsterHp）；null = 不在塔裡
+  setTower(info) {
+    const clear = () => {
+      for (const m of this.mobs) if (m.tower) { this._removeMob(m); m.alive = false; }
+      this.mobs = this.mobs.filter((m) => !m.tower);
+    };
+    if (!info) { if (this.tower) clear(); this.tower = null; return; }
+    if (this.tower?.endsAt === info.endsAt) return;
+    clear();
+    this.tower = { ...info, cleared: false, spawned: false, delay: 1.2 };
+    const P = this.player.group.position;
+    this.qfx.rune(P, 10, 0x6cc8ff, 1.6, 2);
+    this.qfx.beam(P, 3, 18, 0x6cc8ff, 1);
+    this._number(P, `第 ${info.floor} 層`, 'fever', 1);
+  }
+
+  _updateTower(dt) {
+    const T = this.tower;
+    if (!T.spawned) {
+      T.delay -= dt;
+      if (T.delay > 0) return;
+      T.spawned = true;
+      const c = this.def.arena ?? { x: 0, z: 0 };
+      for (let i = 0; i < T.count; i++) {
+        const a = (i / T.count) * Math.PI * 2 + rand(-0.2, 0.2), r = rand(9, 14);
+        const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+        this._spawnMob(-1, { x, z, elite: false, tower: true });
+        if (i % 3 === 0) this.qfx.flash({ x, z }, 1.4, 0x6cc8ff, 0.3, 0.6);
+      }
+      // 樓層守衛：菁英（本身 ×10 血）再乘上 guardMul / 10
+      this._spawnMob(-1, { x: c.x, z: c.z - 10, elite: true, hpMul: T.guardMul / 10, tower: true });
+      this.qfx.wall({ x: c.x, z: c.z - 10 }, 1, 10, 2.5, 0x6cc8ff, 1);
+      return;
+    }
+    if (T.cleared || Date.now() > T.endsAt) return;
+    if (!this.mobs.some((m) => m.tower && m.alive)) {
+      T.cleared = true;
+      const P = this.player.group.position;
+      this.qfx.rune(P, 10, 0xffd166, 1.6, 2);
+      this.qfx.shock(P, 14, 0xffe7a0, 0.7);
+      this.onTowerClear?.(T.floor);
+    }
+  }
+
   // ── 寵物 ───────────────────────────────
   setPetDefs(defs) { this.petDefs = defs || {}; }
   setPet(id, lv = 1) {
@@ -858,8 +903,8 @@ export class BattleScene {
     const sky = new THREE.Color(def.sky);
     this.scene.background = sky;
     this.scene.fog.color.set(def.fog[0]);
-    this.scene.fog.near = def.fog[1];
-    this.scene.fog.far = def.fog[2];
+    this.fogBase = [def.fog[1], def.fog[2]];
+    this._applyFog();
     this.hemi.color.set(def.hemi[0]);
     this.hemi.groundColor.set(def.hemi[1]);
     // 半球光（天空／地面補光）調弱、太陽調強：明暗對比更清楚，不再一片平
@@ -1347,7 +1392,7 @@ export class BattleScene {
     const crit = Math.random() < critRate;
     const buff = (a.buffs.dmg > 0 ? 1.3 : 1) * (a.buffs.venom > 0 ? 1.4 : 1) * (a.feverTime > 0 ? 1.25 : 1);
     const bossMul = m.boss ? 1 + (this.talent?.bossDmg || 0) : 1; // 天賦「屠龍者」（只算自己的）
-    const dmg = base * buff * rand(0.85, 1.15) * (crit ? 2 : 1) * (a.local ? bossMul : 1) * (m.giant ? this.bossDefMul ?? 1 : 1);
+    const dmg = base * buff * rand(0.85, 1.15) * (crit ? 2 : 1) * (a.local ? bossMul : 1) * (m.giant ? this.bossDefMul ?? 1 : 1) * (m.tower && m.elite ? 1 + (this.talent?.towerDmg || 0) : 1);
     if (m.dummy) { // 木人樁：只跳數字，不會壞
       m.flash = 0.12;
       if (a.local) { this._number(m.group.position, fmt(dmg), crit ? 'crit' : 'dmg', 1); this.qfx.hit(m.group.position, styleOf(a.wtype).color, crit); }
@@ -1379,7 +1424,7 @@ export class BattleScene {
     m.dying = 0.35;
     m.bar.visible = false;
     if (m.camp >= 0 && this.campState[m.camp]) this.campState[m.camp].count -= 1;
-    if (m.touched && !this.duel && !this.map.town) {
+    if (m.touched && !this.duel && !this.map.town && !this.map.tower) {
       if (m.elite) this.killReport.elites += 1; else this.killReport.kills += 1;
     }
     if (byLocal) {
@@ -1465,7 +1510,7 @@ export class BattleScene {
     const hp = this.map.monsterHp * (elite ? 10 : 1) * (opt?.hpMul ?? 1);
     if (st) st.count += 1;
     this.mobs.push({
-      group: g, body, mat, bar, fill, elite, alive: true, dying: 0, extras, camp: opt ? -1 : campIdx, model, trial: !!opt,
+      group: g, body, mat, bar, fill, elite, alive: true, dying: 0, extras, camp: opt ? -1 : campIdx, model, trial: !!opt, tower: !!opt?.tower,
       hp, maxHp: hp, flash: 0, hop: rand(0, 6), speed: rand(1.2, 2), radius: 0.6 * scale,
       spawnT: 0, wander: null, wanderT: 0,
     });
@@ -1625,8 +1670,17 @@ export class BattleScene {
 
   // ── 主迴圈 ─────────────────────────────────
   /** 畫面設定（FPS 上限、解析度、陰影、特效品質…），設定頁改了馬上生效 */
+  /** 視角拉遠時霧也往後推，不然遠處一片白 */
+  _applyFog() {
+    if (!this.fogBase || !this.scene.fog) return;
+    const extra = ((this.settings?.cam ?? 1) - 1) * 25;
+    this.scene.fog.near = this.fogBase[0] + extra;
+    this.scene.fog.far = this.fogBase[1] + extra;
+  }
+
   applySettings(st) {
     this.settings = st;
+    this._applyFog();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * st.res);
     try { this._resize?.(); } catch { /* 建構中還沒準備好 */ }
     if (this.renderer.shadowMap.enabled !== st.shadows) {
@@ -1702,6 +1756,7 @@ export class BattleScene {
     }
 
     if (this.trial) this._updateTrial(dt);
+    if (this.tower) this._updateTower(dt);
 
     // 目標：平常是最近的怪，決鬥時是對手
     let nearest = null, nd = Infinity;
@@ -1952,7 +2007,7 @@ export class BattleScene {
       for (const m of this.mobs) this._shadowify(m.group);
       for (const n of this.npcs) this._shadowify(n.group);
     }
-    this.camera.position.copy(this.camFocus).add(this.camOffset);
+    this.camera.position.copy(this.camFocus).addScaledVector(this.camOffset, this.settings?.cam ?? 1); // 設定：視角距離
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt);
       const s = this.shake * 0.9;

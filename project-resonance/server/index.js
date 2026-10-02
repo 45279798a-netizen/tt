@@ -22,7 +22,7 @@ import { WINGS, WING_MAX_LV, wingUpgradeCost, wingBonus, WING_COLLECT_ATK } from
 import { PARTNERS, PARTNER_MAX_LV, partnerUpgradeCost } from './game/partners.js';
 import {
   loadSave, saveNow, register, login, logout, playerByToken, settle,
-  craft, equip, enhanceItem, rerollItem, dismantle, setLock, enterTown, buyMount, upgradeMount, equipMount, craftWing, upgradeWing, equipWing, recruitPartner, deployPartner, upgradePartner, startTrial, endTrial,
+  craft, craftMany, craftMissing, enhanceMany, equip, enhanceItem, rerollItem, dismantle, setLock, enterTown, buyMount, upgradeMount, equipMount, craftWing, upgradeWing, equipWing, recruitPartner, deployPartner, upgradePartner, startTrial, endTrial,
   buyEgg, hatchEgg, feedPet, equipPet,
   manorCollect, manorBuild, manorUpgrade, manorRemove, manorInfo, manorVisit, synth, synthRecipes,
   friendRequest, friendAnswer, friendRemove, friendList, travelToFriend,
@@ -32,6 +32,8 @@ import {
 import { startBots, botFriendReply } from './game/bots.js';
 import { initAdmin, claimAdmin, needAdmin, adminPlayers, adminGive, adminAnnounce, adminRevoke } from './game/admin.js';
 import { TALENTS, BRANCHES, TALENT_TIER_REQ } from './game/talents.js';
+import { startFloor, clearFloor, failFloor } from './game/tower.js';
+import { marketView, listItem, cancelListing, buyListing, setMarketNotify } from './game/market.js';
 import { REBIRTH_LV, REBIRTH_MAX, REBIRTH_PER, CLASS_TITLES, REBIRTH_COLORS } from './game/rebirth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -131,6 +133,9 @@ const action = (fn) => route((req) => {
 // 鍛造師（要在村莊）
 app.post('/api/me/craft', action((p, b) => craft(p, b.base)));
 app.post('/api/me/enhance', action((p, b) => enhanceItem(p, b.uid)));
+app.post('/api/me/enhance/many', action((p, b) => enhanceMany(p, b.uid, b.times)));
+app.post('/api/me/craft/many', action((p, b) => craftMany(p, b.base, b.times)));
+app.post('/api/me/craft/missing', action((p, b) => craftMissing(p, b.set)));
 app.post('/api/me/reroll', action((p, b) => rerollItem(p, b.uid)));
 // 背包
 app.post('/api/me/equip', action((p, b) => equip(p, b.uid)));
@@ -158,6 +163,16 @@ app.post('/api/me/pet/equip', action((p, b) => equipPet(p, b.id ? String(b.id) :
 // 素材合成
 app.post('/api/me/synth', action((p, b) => synth(p, String(b.id || ''), Number(b.times) || 1)));
 app.post('/api/me/trial/end', action((p) => endTrial(p)));
+// 交易所
+setMarketNotify(notify);
+app.get('/api/me/market', route((req) => ({ result: marketView(me(req)) }))); // 只是看，不重設掛機計時
+app.post('/api/me/market/list', action((p, b) => listItem(p, b)));
+app.post('/api/me/market/cancel', action((p, b) => cancelListing(p, String(b.id || ''))));
+app.post('/api/me/market/buy', action((p, b) => buyListing(p, String(b.id || ''))));
+// 試煉之塔
+app.post('/api/me/tower/start', action((p) => startFloor(p)));
+app.post('/api/me/tower/clear', action((p) => clearFloor(p)));
+app.post('/api/me/tower/fail', action((p) => failFloor(p)));
 // 轉職（村莊的轉職殿堂）
 app.post('/api/me/rebirth', action((p) => doRebirth(p)));
 // 天賦樹、每日任務、成就
