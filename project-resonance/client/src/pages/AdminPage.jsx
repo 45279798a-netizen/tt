@@ -64,7 +64,7 @@ export default function AdminPage({ config, pushEvent }) {
             <label key={p.id} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs ${picked.includes(p.id) && target === 'pick' ? 'bg-gold/20' : 'bg-white/5'}`}>
               {target === 'pick' && <input type="checkbox" checked={picked.includes(p.id)} onChange={() => toggle(p.id)} />}
               <span className={`size-1.5 shrink-0 rounded-full ${p.online ? 'bg-emerald-400' : 'bg-white/20'}`} />
-              <span className="truncate font-medium">{p.name}{p.admin && ' 🛡'}</span>
+              <span className="truncate font-medium">{p.name}{p.admin && ' 🛡'}{p.bot && ' 🤖'}</span>
               <span className="num ml-auto shrink-0 text-white/50">{p.rebirth ? `${p.rebirth}轉 ` : ''}Lv.{p.level}</span>
             </label>
           ))}

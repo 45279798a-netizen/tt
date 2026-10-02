@@ -25,9 +25,12 @@ import {
   buyEgg, hatchEgg, feedPet, equipPet,
   manorCollect, manorBuild, manorUpgrade, manorRemove, manorInfo, manorVisit, synth, synthRecipes,
   friendRequest, friendAnswer, friendRemove, friendList, travelToFriend,
-  changeMap, snapshot, leaderboard, GameError, doRebirth,
+  changeMap, snapshot, leaderboard, GameError, doRebirth, enterField,
+  doLearnTalent, resetTalents, claimDaily, claimDailyChest, claimAchieve,
 } from './game/state.js';
+import { startBots, botFriendReply } from './game/bots.js';
 import { initAdmin, claimAdmin, needAdmin, adminPlayers, adminGive, adminAnnounce, adminRevoke } from './game/admin.js';
+import { TALENTS, BRANCHES, TALENT_TIER_REQ } from './game/talents.js';
 import { REBIRTH_LV, REBIRTH_MAX, REBIRTH_PER, CLASS_TITLES, REBIRTH_COLORS } from './game/rebirth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -76,6 +79,7 @@ app.get('/api/config', route(() => ({
   synthRecipes: synthRecipes(), buildings: BUILDINGS, buildMaxLv: BUILD_MAX_LV, manorPlots: PLOTS,
   partnerCosts: Array.from({ length: PARTNER_MAX_LV }, (_, i) => partnerUpgradeCost(i + 1)),
   mountMaxLv: MOUNT_MAX_LV, collectAtk: COLLECT_ATK, partyBonus: PARTY_BONUS, partyMax: PARTY_MAX,
+  talents: TALENTS, talentBranches: BRANCHES, talentTierReq: TALENT_TIER_REQ,
   rebirth: { level: REBIRTH_LV, max: REBIRTH_MAX, per: REBIRTH_PER, titles: CLASS_TITLES, colors: REBIRTH_COLORS },
 })));
 
@@ -154,6 +158,12 @@ app.post('/api/me/synth', action((p, b) => synth(p, String(b.id || ''), Number(b
 app.post('/api/me/trial/end', action((p) => endTrial(p)));
 // 轉職（村莊的轉職殿堂）
 app.post('/api/me/rebirth', action((p) => doRebirth(p)));
+// 天賦樹、每日任務、成就
+app.post('/api/me/talent', action((p, b) => doLearnTalent(p, b.id)));
+app.post('/api/me/talent/reset', action((p) => resetTalents(p)));
+app.post('/api/me/daily/claim', action((p, b) => claimDaily(p, b.i)));
+app.post('/api/me/daily/chest', action((p) => claimDailyChest(p)));
+app.post('/api/me/achieve/claim', action((p, b) => claimAchieve(p, String(b.id || ''), b.tier)));
 // 管理員：輸入密鑰成為管理員 → 發放物資、全服公告
 app.post('/api/me/admin/claim', action((p, b) => claimAdmin(p, b.key)));
 app.get('/api/admin/players', route((req) => { const p = me(req); needAdmin(p); return { list: adminPlayers(isOnline) }; }));
@@ -172,11 +182,13 @@ app.post('/api/me/mount/equip', action((p, b) => equipMount(p, b.id ? String(b.i
 // 移動
 app.post('/api/me/map', action((p, b) => changeMap(p, Number(b.mapId))));
 app.post('/api/me/town', action((p) => enterTown(p)));
+app.post('/api/me/field', action((p) => enterField(p))); // 村莊南邊的緣起獵場
 // 好友
 app.get('/api/me/friends', route((req) => friendList(me(req), isOnline)));
 app.post('/api/me/friends/request', route((req) => {
   const p = me(req);
   const { target, autoAccepted } = friendRequest(p, req.body?.name);
+  if (target.bot && !autoAccepted) botFriendReply(target, p, notify); // AI 玩家幾秒後自動接受
   notify(target.id, autoAccepted
     ? { t: 'friend_info', text: `你和 ${p.name} 成為好友了！` }
     : { t: 'friend_req', from: p.id, name: p.name });
@@ -236,6 +248,7 @@ const server = app.listen(PORT, () => {
 });
 
 attachRealtime(server); // WebSocket：同地圖的玩家互相看見
+startBots();            // AI 玩家（環境變數 BOTS=0 可以關掉）
 
 // 關閉伺服器時強制存檔
 for (const sig of ['SIGINT', 'SIGTERM']) {

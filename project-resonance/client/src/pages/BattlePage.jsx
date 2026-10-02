@@ -53,7 +53,9 @@ export default function BattlePage({ player, config, events, active, killsPerMin
   }, []);
 
   const town = player.inTown;
-  const map = config.maps[player.mapId];
+  const field = !town && !!player.inField; // 緣起獵場：怪物強度 = 自己最遠的地圖
+  const tierMap = config.maps[player.mapId];
+  const map = useMemo(() => (field ? { ...tierMap, id: 'field', field: true, name: '緣起獵場' } : tierMap), [field, tierMap]);
   // 莊園：在村莊時可以進自己的或好友的莊園（伺服器上仍算在村莊，沒有戰鬥）
   const [manor, setManor] = useState(manorStore.get());
   useEffect(() => manorStore.subscribe(setManor), []);
@@ -260,7 +262,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
     return () => { if (s()) { s().onFx = null; s().onHit = null; } net.close(); netRef.current = null; };
   }, [player.id]);
 
-  const next = !town && config.maps[player.mapId + 1];
+  const next = !town && !field && config.maps[player.mapId + 1];
   const u = player.nextUnlock;
   const canAdvance = next && u?.ok;
   const monster = config.sets[player.mapId];
@@ -291,26 +293,26 @@ export default function BattlePage({ player, config, events, active, killsPerMin
             onSurrender={() => netRef.current?.send({ t: 'duel_leave' })} />
         ) : (
         <div className="flex min-w-0 flex-col items-center gap-1.5">
-          <div className="rounded-full bg-black/50 px-4 py-1 text-center backdrop-blur">
+          <div className="whitespace-nowrap rounded-full bg-black/50 px-4 py-1 text-center backdrop-blur short:px-3 short:py-0.5">
             {town ? (
               <>
                 <span className="text-sm font-bold">🏘 緣起村</span>
                 <span className="ml-2 text-[11px] font-bold text-emerald-300">和平區</span>
-                <span className="ml-2 text-[11px] text-white/55">村莊裡沒有收益，出發狩獵吧</span>
+                <span className="ml-2 text-[11px] text-white/55 short:hidden">村莊裡可以試招，打怪請出發狩獵</span>
               </>
             ) : (
               <>
-                <span className="text-sm font-bold">{map.name}</span>
-                <span className="ml-2 text-[11px] font-bold" style={{ color: setColor(map.id) }}>狩獵：{monster.monster}</span>
-                <span className="num ml-2 text-[11px] text-white/55">{killsPerMin} 殺/分</span>
+                <span className="text-sm font-bold">{field ? '🌾 緣起獵場' : map.name}</span>
+                <span className="ml-2 text-[11px] font-bold" style={{ color: setColor(player.mapId) }}>{field ? `強度：${tierMap.name}` : `狩獵：${monster.monster}`}</span>
+                <span className="num ml-2 text-[11px] text-white/55 short:hidden">{killsPerMin} 殺/分</span>
               </>
             )}
           </div>
           {town && !inManor && (
-            <div className="pointer-events-auto flex gap-1.5">
+            <div className="pointer-events-auto flex max-w-[52vw] short:max-w-[38vw] gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
               {NPCS.map((n) => (
                 <button key={n.id} onClick={() => sceneRef.current?.walkTo(n.id)}
-                  className="rounded-full border border-gold/40 bg-black/55 px-2.5 py-1 text-[11px] font-bold text-gold backdrop-blur active:scale-95">
+                  className="shrink-0 whitespace-nowrap rounded-full border border-gold/40 bg-black/55 px-2.5 py-1 text-[11px] font-bold text-gold backdrop-blur active:scale-95">
                   {n.icon} {n.name.split('·').pop()}
                 </button>
               ))}
@@ -323,9 +325,9 @@ export default function BattlePage({ player, config, events, active, killsPerMin
                 🤝 組隊加成 +{Math.round((player.party.mul - 1) * 100)}%
               </span>
             )}
-            {mates.slice(0, 4).map((m) => (
+            {mates.slice(0, 4).map((m, i) => (
               <button key={m.id} disabled={town} onClick={() => setChallenge(m)}
-                className="pointer-events-auto rounded-full bg-black/45 px-2 py-0.5 text-sky-200 backdrop-blur active:scale-95">
+                className={`${i >= 2 ? 'short:hidden ' : ''}pointer-events-auto rounded-full bg-black/45 px-2 py-0.5 text-sky-200 backdrop-blur active:scale-95`}>
                 {m.name}{town ? '' : ' ⚔'}
               </button>
             ))}
@@ -335,7 +337,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
               <button onClick={() => onGoTown?.()}
                 className="rounded-full bg-emerald-900/70 px-2.5 py-1 text-[11px] font-bold text-emerald-200 backdrop-blur active:scale-95">🏘 回村莊</button>
             )}
-            {!town && player.mapId > 0 && (
+            {!town && !field && player.mapId > 0 && (
               <button onClick={() => onChangeMap(player.mapId - 1)}
                 className="rounded-full bg-black/45 px-2.5 py-1 text-[11px] text-white/60 backdrop-blur">◀ 上一區</button>
             )}
@@ -372,7 +374,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         </div>
       )}
       {player.raid && !player.inTown && !duel && <BossBar boss={player.raid} share={0} raid />}
-      {!town && !duel && !player.raid && (
+      {!town && !field && !duel && !player.raid && (
         <button onClick={() => setRaidConfirm(true)}
           className="pointer-events-auto fixed left-3 top-[134px] z-20 rounded-xl border border-rose-300/50 bg-rose-950/80 px-3 py-1.5 text-xs font-bold text-rose-100 backdrop-blur active:scale-95">
           🦇 首領突襲{cdLabel(player.raidCd)}
@@ -463,7 +465,7 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         </div>
         <div className="mr-2">
           <SkillPad scene={sceneRef} auto={auto} wtype={player.stats.wtype} loadout={loadout} defs={config.skills}
-            disabled={town} onToggleAuto={() => setAuto((a) => !a)}
+            disabled={false} onToggleAuto={() => setAuto((a) => !a)}
             mount={mountDef} riding={riding && !duel} rideLocked={!!duel} onToggleRide={() => setRiding((r) => !r)} />
         </div>
       </div>

@@ -19,6 +19,8 @@ import ManorPage from './pages/ManorPage.jsx';
 import PetPage from './pages/PetPage.jsx';
 import RebirthPage from './pages/RebirthPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
+import TalentPage from './pages/TalentPage.jsx';
+import QuestPage from './pages/QuestPage.jsx';
 
 export default function App() {
   const game = useGame();
@@ -38,6 +40,8 @@ export default function App() {
     const close = () => setPanel(null);
     const pages = {
       bag: <BagPage player={player} config={config} onEquip={game.doEquip} onLock={game.doLock} onDismantle={game.doDismantle} />,
+      talent: <TalentPage player={player} config={config} onLearn={game.doTalent} onReset={game.doTalentReset} />,
+      quest: <QuestPage player={player} config={config} onClaimDaily={game.doDailyClaim} onChest={game.doDailyChest} onClaimAchieve={game.doAchieveClaim} />,
       rebirth: <RebirthPage player={player} config={config} onRebirth={game.doRebirth} />,
       admin: player.admin ? <AdminPage config={config} pushEvent={game.pushEvent} /> : null,
       char: <CharacterPage player={player} config={config} onEquip={game.doEquip} onLogout={game.logout} onClaimAdmin={game.doClaimAdmin}
@@ -57,7 +61,8 @@ export default function App() {
         ? <ForgePage player={player} config={config} onCraft={game.doCraft} onEnhance={game.doEnhance} onReroll={game.doReroll} onEquip={game.doEquip} />
         : <p className="p-6 text-center text-sm text-white/50">鍛造師在村莊裡，先回村莊吧</p>,
       stable: <StablePage player={player} config={config} onBuy={game.doBuyMount} onUpgrade={game.doUpgradeMount} onEquip={game.doEquipMount} />,
-      portal: <PortalPage player={player} config={config} onGo={async (id) => { if (await game.doChangeMap(id)) close(); }} />,
+      portal: <PortalPage player={player} config={config} onGo={async (id) => { if (await game.doChangeMap(id)) close(); }} onField={async () => { if (await game.doGoField()) close(); }} />,
+      field: <FieldGate player={player} config={config} onGo={async () => { if (await game.doGoField()) close(); }} />,
     };
     const title = MENUS.find((m) => m.id === panel)?.label ?? NPC_PANELS[panel];
     screen = (
@@ -67,10 +72,10 @@ export default function App() {
           active={!portrait} killsPerMin={game.killsPerMin} pushEvent={game.pushEvent} onTrialStart={game.doTrialStart} onTrialEnd={game.doTrialEnd} onRaidStart={game.doRaidStart} onChangeMap={game.doChangeMap} onGoTown={game.doGoTown}
           onNpc={(id) => setPanel(id)}
           topLeft={<HudPlayer player={player} online={game.online} />}
-          topRight={<MenuBar open={panel} onOpen={(id) => setPanel(panel === id ? null : id)} pwa={pwa} admin={player.admin} badges={{ friends: player.friendReqs, bag: player.inv.filter((x) => x.delta > 0).length }} />}
+          topRight={<MenuBar open={panel} onOpen={(id) => setPanel(panel === id ? null : id)} pwa={pwa} admin={player.admin} badges={{ friends: player.friendReqs, bag: player.inv.filter((x) => x.delta > 0).length, quest: player.badges.daily + player.badges.achieve, talent: player.badges.talent }} />}
         />
         {panel && pages[panel] && (
-          <SidePanel title={title} wide={['char', 'smith', 'bag', 'stable', 'tavern', 'partner', 'manor', 'pet', 'admin'].includes(panel)} onClose={close}>
+          <SidePanel title={title} wide={['char', 'smith', 'bag', 'stable', 'tavern', 'partner', 'manor', 'pet', 'admin', 'talent', 'quest'].includes(panel)} onClose={close}>
             {pages[panel]}
           </SidePanel>
         )}
@@ -110,6 +115,17 @@ function Toast({ events, config }) {
   return (
     <div className="pointer-events-none fixed inset-x-0 top-20 z-50 grid place-items-center">
       <div className={`toast-pop rounded-full px-5 py-2 text-sm font-bold shadow-lg ${cls}`}>{text}</div>
+    </div>
+  );
+}
+
+/** 村莊南門的獵場守衛：前往緣起獵場 */
+function FieldGate({ player, config, onGo }) {
+  return (
+    <div className="space-y-3 p-4 text-sm">
+      <p className="text-white/70">往南出村就是 <b className="text-amber-200">緣起獵場</b>。這裡的魔物會配合每個人的實力變強：你看到的怪物強度、掉落的素材，都跟你去過最遠的地圖（<b>{config.maps[player.maxMap].name}</b>）一樣。</p>
+      <p className="text-xs text-white/50">不管進度到哪，大家都能在這裡碰面一起打。常常有其他冒險者（AI 玩家）在這裡狩獵，同地圖人越多組隊加成越高（最多 +30%）。</p>
+      <button onClick={onGo} className="w-full rounded-xl bg-amber-400 py-3 font-bold text-ink active:scale-[.98]">🌾 出發到緣起獵場</button>
     </div>
   );
 }

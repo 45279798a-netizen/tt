@@ -48,6 +48,18 @@ export const SKILLS = {
   b_pierce: { cls: 'bow', name: '穿雲箭', icon: '🎯', cd: 8,  desc: '蓄力後射出貫穿一切的巨箭', pvp: { mult: 5.5, range: 20 } },
   b_rain:   { cls: 'bow', name: '箭雨', icon: '🌧️', cd: 11, desc: '前方降下 1.2 秒箭雨', pvp: { mult: 5.5, range: 13 } },
   b_storm:  { cls: 'bow', name: '千矢星落', icon: '🌠', cd: 18, desc: '巨大風陣 + 漫天星矢 + 龍捲收尾', pvp: { mult: 8, range: 14 } },
+
+  // ── 鐮刀：中距離、大範圍、暗影（v0.4）──
+  sc_reap:    { cls: 'scythe', name: '死神收割', icon: '☠️', cd: 6,  desc: '360° 暗影橫掃', pvp: { mult: 4.5, range: 6.5 } },
+  sc_chain:   { cls: 'scythe', name: '冥魂鎖鏈', icon: '⛓️', cd: 9,  desc: '鎖鏈把附近的怪拉過來，再一刀斬斷', pvp: { mult: 5, range: 10 } },
+  sc_tide:    { cls: 'scythe', name: '亡靈潮汐', icon: '💀', cd: 11, desc: '三波亡靈潮往前湧', pvp: { mult: 6.5, range: 14 } },
+  sc_eclipse: { cls: 'scythe', name: '月蝕審判', icon: '🌘', cd: 20, desc: '黑月降臨，全場崩落', pvp: { mult: 9.5, range: 12 } },
+
+  // ── 拳套：超近距離、極快連打、烈火（v0.4）──
+  f_combo: { cls: 'fist', name: '百裂拳', icon: '👊', cd: 5,  desc: '1.2 秒內打出 10 拳', pvp: { mult: 4, range: 5 } },
+  f_rise:  { cls: 'fist', name: '昇龍拳', icon: '🐲', cd: 8,  desc: '火焰昇龍上勾拳', pvp: { mult: 5, range: 5 } },
+  f_wave:  { cls: 'fist', name: '烈火掌風', icon: '🔥', cd: 10, desc: '向前推出一道火焰掌風', pvp: { mult: 6, range: 11 } },
+  f_burst: { cls: 'fist', name: '爆裂天拳', icon: '☄️', cd: 16, desc: '躍起從天砸下巨大火拳', pvp: { mult: 7.5, range: 9 } },
 };
 
 /** 每個職業的固定技能（順序 = 技能盤由下往上的位置） */
@@ -58,4 +70,6 @@ export const CLASS_SKILLS = {
   staff: ['s_orb', 's_meteor', 's_beam', 's_judge'],
   spear: ['sp_thrust', 'sp_leap', 'sp_drill', 'sp_dragon'],
   bow: ['b_multi', 'b_pierce', 'b_rain', 'b_storm'],
+  scythe: ['sc_reap', 'sc_chain', 'sc_tide', 'sc_eclipse'],
+  fist: ['f_combo', 'f_rise', 'f_wave', 'f_burst'],
 };

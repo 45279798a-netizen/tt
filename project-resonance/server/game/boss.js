@@ -23,6 +23,8 @@ export const BOSSES = [
   { name: '蝕日吸血鬼領主', icon: '🧛', color: '#ffc94a' },
   { name: '幽沼吸血鬼領主', icon: '🧛', color: '#b26cff' },
   { name: '星穹吸血鬼領主', icon: '🧛', color: '#5ee7ff' },
+  { name: '深淵吸血鬼女王', icon: '🧛', color: '#3fd6c6' },
+  { name: '龍骸吸血鬼魔王', icon: '🧛', color: '#ff7a4a' },
 ];
 
 let boss = null;
@@ -89,7 +91,7 @@ export function bossTick(huntingCount, now = Date.now()) {
 export function hitBoss(playerId, rawDmg, now = Date.now()) {
   const p = getPlayer(playerId);
   const dmg = Number(rawDmg);
-  if (!boss || !(dmg > 0) || p.inTown || p.mapId !== boss.mapId) { p.lastBossHit = now; return []; }
+  if (!boss || !(dmg > 0) || p.inTown || p.inField || p.mapId !== boss.mapId) { p.lastBossHit = now; return []; }
   const elapsed = Math.min(Math.max((now - (p.lastBossHit || now - 2000)) / 1000, 0), MAX_GAP_SEC);
   p.lastBossHit = now;
   const cap = (calcStats(p).dps / AOE_TARGETS) * BOSS_HIT_CAP * partnerMul(p) * elapsed + 1;

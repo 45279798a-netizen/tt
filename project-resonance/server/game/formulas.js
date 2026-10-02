@@ -8,9 +8,11 @@ import { mountStats } from './mounts.js';
 import { wingStats } from './wings.js';
 import { petStats } from './pets.js';
 import { rebirthBonus, rebirthOf, REBIRTH_EXP_MUL } from './rebirth.js';
+import { talentStats } from './talents.js';
+import { achieveBonus } from './achieve.js';
 
 // 目前 3 張狩獵地圖（地形設計在 client/src/game3d/maps.js）
-const MAP_NAMES = ['翠綠森林', '熔岩峽谷', '霜雪遺跡', '烈陽聖域', '幽影沼澤', '星界天穹'];
+const MAP_NAMES = ['翠綠森林', '熔岩峽谷', '霜雪遺跡', '烈陽聖域', '幽影沼澤', '星界天穹', '沉沒王都', '龍骨荒原'];
 
 // 每張地圖的怪物血量 ×30、金幣 ×22、經驗 ×20 —— 指數成長
 export const MAPS = MAP_NAMES.map((name, i) => ({
@@ -75,6 +77,11 @@ export function calcStats(p) {
   // 轉職：永久加成
   const rb = rebirthBonus(rebirthOf(p));
   aff.atkPct += rb.atkPct; aff.hpPct += rb.hpPct; aff.critRate += rb.critRate; aff.critDmg += rb.critDmg; aff.expPct += rb.expPct;
+  // 天賦樹 + 成就點
+  const ts = talentStats(p);
+  const ab = achieveBonus(p);
+  for (const k of ['atkPct', 'hpPct', 'defPct', 'critRate', 'critDmg', 'goldPct', 'expPct', 'dropPct']) aff[k] += ts[k] || 0;
+  aff.atkPct += ab; aff.hpPct += ab;
 
   const w = eq.weapon;
   const wt = w ? ITEMS[w.base] : ITEMS.starter_weapon;
@@ -104,8 +111,10 @@ export function calcStats(p) {
   return {
     atk, def, hp, dps, wtype: type.id,
     critRate, critDmg, goldPct: aff.goldPct, expPct: aff.expPct, dropPct: aff.dropPct,
-    mountSpeed: ms.speed,
-    rebirth: rebirthOf(p), skillMul: 1 + rb.skillDmg, cdr: rb.cdr,
+    mountSpeed: ms.speed * (1 + (ts.mountSpeed || 0)),
+    rebirth: rebirthOf(p), skillMul: 1 + rb.skillDmg + (ts.skillDmg || 0), cdr: Math.min(0.5, rb.cdr + (ts.cdr || 0)),
+    // 前端用的天賦效果：狂熱秒數、首領傷害、暈眩減免、狂熱累積
+    talent: { feverTime: (ts.feverTime || 0) * 100, bossDmg: ts.bossDmg || 0, stun: ts.stun || 0, feverGain: ts.feverGain || 0 },
   };
 }
 
@@ -131,7 +140,7 @@ export function calcRates(p) {
 // ── 前往下一區的戰力門檻 ─────────────────────
 // 「上一區整套 5 件（普通品質、無附加）、每件強化 +N、等級 L」的戰力
 // 這樣調裝備數值時門檻會自動跟著變，不會又變成一進去就秒殺 / 永遠進不去
-const REQ_BUILD = [null, { enh: 5, level: 22 }, { enh: 6, level: 45 }, { enh: 6, level: 60 }, { enh: 7, level: 80 }, { enh: 8, level: 100 }];
+const REQ_BUILD = [null, { enh: 5, level: 22 }, { enh: 6, level: 45 }, { enh: 6, level: 60 }, { enh: 7, level: 80 }, { enh: 8, level: 100 }, { enh: 9, level: 100 }, { enh: 10, level: 100 }];
 function referenceCP(tier, enh, level) {
   const inv = [];
   const equipped = {};

@@ -69,7 +69,7 @@ export function adminPlayers(isOnline) {
     .map((q) => ({
       id: q.id, name: q.name, level: q.level, rebirth: rebirthOf(q), maxMap: q.maxMap,
       gold: q.gold, essence: q.essence, eggs: q.eggs || 0, online: isOnline(q.id), admin: !!q.admin,
-      inTown: q.inTown, mapId: q.mapId,
+      inTown: q.inTown, mapId: q.mapId, bot: !!q.bot,
     }))
     .sort((a, b) => b.online - a.online || b.level - a.level);
 }

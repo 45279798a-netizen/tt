@@ -17,7 +17,7 @@ export default function SkillPad({ scene, auto, onToggleAuto, wtype = 'great', l
   const cast = (id) => scene.current?.castSkill(id);
 
   return (
-    <div className="pointer-events-none relative size-44">
+    <div className="pointer-events-none relative size-44 short:origin-bottom-right short:scale-[.86]">
       <div className={`transition ${disabled ? 'opacity-30 grayscale' : ''}`}>
       <SkillButton id="basic" s={basic} big cd={cd.basic} onCast={cast} className="right-0 bottom-0" disabled={disabled} />
       {loadout.map((id, i) => defs[id] && (
@@ -28,7 +28,7 @@ export default function SkillPad({ scene, auto, onToggleAuto, wtype = 'great', l
         <button
           onClick={onToggleRide}
           disabled={rideLocked}
-          className={`no-touch-action pointer-events-auto absolute -top-9 right-[74px] rounded-full border px-3 py-1.5 text-xs font-bold backdrop-blur transition active:scale-95 disabled:opacity-40
+          className={`no-touch-action pointer-events-auto absolute -top-9 right-[74px] short:-left-24 short:top-auto short:right-auto short:bottom-12 rounded-full border px-3 py-1.5 text-xs font-bold backdrop-blur transition active:scale-95 disabled:opacity-40
             ${riding ? 'border-amber-300/70 bg-amber-900/70 text-amber-100' : 'border-white/25 bg-black/60 text-white/70'}`}
         >
           {mount.icon} {riding ? '下坐騎' : '騎乘'}
@@ -36,7 +36,7 @@ export default function SkillPad({ scene, auto, onToggleAuto, wtype = 'great', l
       )}
       <button
         onClick={onToggleAuto}
-        className={`no-touch-action pointer-events-auto absolute -top-9 right-0 rounded-full border px-3 py-1.5 text-xs font-bold backdrop-blur transition active:scale-95
+        className={`no-touch-action pointer-events-auto absolute -top-9 right-0 short:-left-24 short:top-auto short:right-auto short:bottom-1 rounded-full border px-3 py-1.5 text-xs font-bold backdrop-blur transition active:scale-95
           ${auto ? 'border-emerald-300/70 bg-emerald-900/70 text-emerald-200' : 'border-white/25 bg-black/60 text-white/70'}`}
       >
         {auto ? '● 自動' : '○ 手動'}

@@ -649,7 +649,7 @@ export class World {
     const mat = new THREE.PointsMaterial({
       size: kind === 'snow' ? 0.35 : kind === 'embers' ? 0.3 : 0.4,
       map: new THREE.CanvasTexture(cv),
-      color: { fireflies: '#d9ff7a', embers: '#ff8a3a', snow: '#ffffff', sunmotes: '#ffe08a', spores: '#c98cff', stardust: '#8ff3ff' }[kind],
+      color: { fireflies: '#d9ff7a', embers: '#ff8a3a', snow: '#ffffff', sunmotes: '#ffe08a', spores: '#c98cff', stardust: '#8ff3ff', bubbles: '#9ff6ff', ashfall: '#d8a890' }[kind],
       transparent: true, depthWrite: false,
       blending: kind === 'snow' ? THREE.NormalBlending : THREE.AdditiveBlending,
     });
@@ -665,6 +665,10 @@ export class World {
           a[i * 3] += Math.sin(t * 0.7 + s) * dt * 0.6;
           a[i * 3 + 1] = 0.6 + (Math.sin(t * 0.5 + s * 2) + 1) * 1.6;
           a[i * 3 + 2] += Math.cos(t * 0.6 + s) * dt * 0.6;
+        } else if (kind === 'bubbles') { // 沉沒王都：氣泡慢慢往上飄、左右搖
+          a[i * 3 + 1] += dt * (0.8 + (s % 1) * 1.4);
+          a[i * 3] += Math.sin(t * 2 + s) * dt * 0.4;
+          if (a[i * 3 + 1] > 8) a[i * 3 + 1] = 0;
         } else if (kind === 'embers') {
           a[i * 3 + 1] += dt * (1.2 + (s % 1) * 2);
           a[i * 3] += Math.sin(t + s) * dt * 0.5;
@@ -788,6 +792,18 @@ const DECOR = {
   iceCrystal: () => [
     { geo: new THREE.OctahedronGeometry(0.7, 0).scale(0.5, 2.1, 0.5).translate(0, 1.3, 0), color: '#a8e6ff', emissive: '#3a8fd0', emissiveIntensity: 0.45 },
     { geo: new THREE.OctahedronGeometry(0.4, 0).scale(0.5, 1.6, 0.5).rotateZ(0.5).translate(0.6, 0.6, 0.2), color: '#c8f0ff', emissive: '#3a8fd0', emissiveIntensity: 0.35 },
+  ],
+  // 沉沒王都：珊瑚、海草
+  coral: () => [
+    { geo: new THREE.CylinderGeometry(0.12, 0.22, 1.4, 5).translate(0, 0.7, 0), colors: ['#ff6f91', '#ff9f6a', '#c86bff'] },
+    { geo: new THREE.CylinderGeometry(0.08, 0.14, 0.9, 5).rotateZ(0.7).translate(0.35, 1.1, 0), colors: ['#ff6f91', '#ff9f6a', '#c86bff'] },
+    { geo: new THREE.CylinderGeometry(0.08, 0.14, 0.8, 5).rotateZ(-0.8).translate(-0.3, 0.9, 0.1), colors: ['#ffb3c6', '#ffd29a', '#e0a8ff'] },
+  ],
+  kelp: () => [{ geo: new THREE.ConeGeometry(0.18, 2.6, 4).translate(0, 1.3, 0), colors: ['#2f8f6a', '#3aa37a', '#24735a'], jitter: 0.08, yScale: 1.2 }],
+  // 龍骨荒原：地上插著的骨刺
+  bone: () => [
+    { geo: new THREE.ConeGeometry(0.28, 2.4, 6).rotateZ(0.25).translate(0.2, 1.1, 0), colors: ['#e8dcc4', '#d9ccb0', '#f0e6d2'] },
+    { geo: new THREE.SphereGeometry(0.35, 6, 5).scale(1, 0.6, 1).translate(0, 0.1, 0), color: '#cdbf9e' },
   ],
   snowMound: () => [{ geo: new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.4, 0.45, 1.1), color: '#f4f8fc' }],
 };
@@ -1141,6 +1157,45 @@ const LANDMARKS = {
     const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.6, 0.6), lam('#7a6a5e'));
     chimney.position.set(1.4, 4.6, -0.8);
     g.add(body, roof, door, chimney);
+  },
+  // 龍骨荒原：巨龍肋骨拱（一排彎曲的骨頭）
+  ribcage(g) {
+    const bone = lam('#e8dcc4');
+    for (let i = 0; i < 7; i++) {
+      for (const s of [-1, 1]) {
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(4.2 - Math.abs(i - 3) * 0.35, 0.28, 6, 14, Math.PI * 0.55), bone);
+        rib.position.set(s * 0.6, 0, -6 + i * 2);
+        rib.rotation.set(0, s > 0 ? 0 : Math.PI, Math.PI * 0.2);
+        g.add(rib);
+      }
+    }
+    const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 14, 8).rotateX(Math.PI / 2), bone);
+    spine.position.y = 4.1;
+    const skull = new THREE.Mesh(new THREE.DodecahedronGeometry(1.8, 0).scale(1, 0.8, 1.5), lam('#d9ccb0'));
+    skull.position.set(0, 1.4, 9);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: '#ff4a2a' });
+    for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), eyeMat); e.position.set(s * 0.7, 1.9, 10.6); g.add(e); }
+    g.add(spine, skull);
+    return { anim: (t) => { eyeMat.color.setHSL(0.03, 1, 0.45 + Math.sin(t * 3) * 0.12); } };
+  },
+  // 沉沒王都：發光珊瑚塔 + 沉沒的王座
+  coralSpire(g) {
+    const glowMat = new THREE.MeshBasicMaterial({ color: '#7df9ff' });
+    const stone = lam('#4a6a78');
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.6, 1.2, 8), stone);
+    base.position.y = 0.6;
+    g.add(base);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.5, 4 + i * 0.6, 6), lam(['#ff6f91', '#c86bff', '#ff9f6a', '#6fe0c8', '#ff6f91'][i]));
+      c.position.set(Math.cos(a) * 1.6, 2.6 + i * 0.3, Math.sin(a) * 1.6);
+      c.rotation.set(Math.cos(a) * 0.2, 0, -Math.sin(a) * 0.2);
+      g.add(c);
+    }
+    const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 12), glowMat);
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(1.4, 16, 12), new THREE.MeshBasicMaterial({ color: '#7df9ff', transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
+    g.add(pearl, halo);
+    return { anim: (t) => { pearl.position.y = 6 + Math.sin(t * 1.4) * 0.4; halo.position.y = pearl.position.y; halo.scale.setScalar(1 + Math.sin(t * 3) * 0.15); } };
   },
   // 村莊北邊：轉職殿堂（白石階梯平台 + 六根石柱 + 圓頂 + 漂浮的轉職水晶 + 地上發光法陣）
   temple(g) {

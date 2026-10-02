@@ -2,11 +2,20 @@ import { fmt } from '../utils/format.js';
 import { setColor } from '../components/Icons.jsx';
 
 /** 傳送師·露娜：選擇狩獵地圖 */
-export default function PortalPage({ player, config, onGo }) {
+export default function PortalPage({ player, config, onGo, onField }) {
   const u = player.nextUnlock;
   return (
     <div className="space-y-1.5 p-3">
       <p className="text-xs text-white/45">選一張地圖出發狩獵。新地圖要先做出上一區魔物的武器＋3 個部位，且戰力達標。</p>
+      <div className="flex items-center gap-3 rounded-xl border border-amber-300/40 bg-amber-500/10 p-2.5">
+        <span className="grid size-9 place-items-center rounded-lg bg-white/5 text-lg">🌾</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-bold">緣起獵場 <span className="text-xs font-normal text-amber-200">· 村莊南邊 · 大家一起打</span></div>
+          <div className="text-[11px] text-white/45">怪物強度跟你最遠的地圖（{config.maps[player.maxMap].name}）一樣，AI 玩家和朋友都在這裡；組隊加成也算 AI 玩家</div>
+        </div>
+        {player.inField ? <span className="text-xs text-emerald-300">目前在這</span>
+          : <button onClick={onField} className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-ink active:scale-95">前往</button>}
+      </div>
       {config.maps.map((m) => {
         const set = config.sets[m.id];
         const open = m.id <= player.maxMap;

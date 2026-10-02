@@ -149,7 +149,8 @@ function attachModel(hero) {
   };
   const hr = holder(sk.armR, 1), hl = holder(sk.armL, -1);
   for (const w of [hero.sword, hero.katana, hero.staff, hero.spear, hero.dual[0].g]) { w.position.set(0, 0, 0); hr.add(w); }
-  for (const w of [hero.dual[1].g, hero.bow]) { w.position.set(0, 0, 0); hl.add(w); }
+  for (const w of [hero.dual[1].g, hero.bow, hero.fists[1]]) { w.position.set(0, 0, 0); hl.add(w); }
+  for (const w of [hero.scythe, hero.fists[0]]) { w.position.set(0, 0, 0); hr.add(w); }
   hideBody(hero);
 }
 
@@ -437,6 +438,39 @@ export function createHero(opts = {}) {
   bow.visible = false;
   armL.pivot.add(bow);
 
+  // 鐮刀：長柄 + 彎月刃（刃用 blade 材質，會跟著階級變色）
+  const scythe = new THREE.Group();
+  scythe.position.y = -0.56;
+  scythe.rotation.set(1.6, 0, -0.2);
+  const scShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 2.1, 8), lam('#2a2030'));
+  scShaft.position.y = 0.35;
+  const scBlade = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.05, 4, 20, Math.PI * 0.62), m.blade);
+  scBlade.position.set(-0.62, 1.38, 0); scBlade.rotation.z = Math.PI * 0.08; scBlade.scale.set(1, 1, 0.5);
+  const scTip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 4), m.blade);
+  scTip.position.set(-1.12, 1.62, 0); scTip.rotation.z = 2.2;
+  const scGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), new THREE.MeshBasicMaterial({ color: 0xa66bff }));
+  scGem.position.y = 1.4;
+  scythe.add(scShaft, scBlade, scTip, scGem);
+  scythe.visible = false;
+  armR.pivot.add(scythe);
+
+  // 拳套：兩手各一隻包到前臂的鐵拳套，拳頭前面有火焰寶石
+  const makeFist = () => {
+    const g = new THREE.Group();
+    g.position.y = -0.5;
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.28, 8), m.guard);
+    cuff.position.y = 0.12;
+    const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.2), m.blade);
+    knuckle.position.y = -0.06;
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color: 0xff8a3a }));
+    gem.position.set(0, -0.06, 0.11);
+    g.add(cuff, knuckle, gem);
+    g.visible = false;
+    return g;
+  };
+  const fistR = makeFist(), fistL = makeFist();
+  armR.pivot.add(fistR); armL.pivot.add(fistL);
+
   // 雙劍：兩把短刃，左右手各一
   const makeShort = () => {
     const g = new THREE.Group();
@@ -465,7 +499,7 @@ export function createHero(opts = {}) {
     sword, blade, tip, guard,
     katana, kBladeA, kBladeB, kTip,
     staff, sMat, sGlow, sRing, crystal,
-    spear, pHead, pWing, bow, bGemMat,
+    spear, pHead, pWing, bow, bGemMat, scythe, fists: [fistR, fistL],
     dual: [dualR, dualL],
     wtype: 'great', swing: 0, swingL: 0, flip: false, hipY: 0.45,
     bodyParts: [torso, belt, skirt, head, eyes, hair, helm, pads, cape, legL, legR,
@@ -496,6 +530,8 @@ export function applyEquipment(hero, equipped, items) {
   hero.staff.visible = wtype === 'staff';
   hero.spear.visible = wtype === 'spear';
   hero.bow.visible = wtype === 'bow';
+  hero.scythe.visible = wtype === 'scythe';
+  hero.fists.forEach((f) => { f.visible = wtype === 'fist'; });
   if (wtype === 'spear') { const k = 1 + Math.max(0, tier) * 0.06; hero.pHead.scale.set(k, k, 0.35 * k); }
   if (wtype === 'bow') hero.bGemMat.color.set(['#8affc1', '#ff9a4a', '#9be7ff', '#ffd166', '#c98cff', '#8ff3ff'][Math.max(0, tier)] ?? '#8affc1');
   if (wtype === 'staff') { // 星晶顏色跟著階級
@@ -592,7 +628,7 @@ export function applyEquipment(hero, equipped, items) {
 
 /** 出手：雙劍左右手輪流 */
 export function triggerSwing(hero) {
-  if (hero.wtype === 'dual') {
+  if (hero.wtype === 'dual' || hero.wtype === 'fist') {
     if (hero.flip) hero.swingL = 1; else hero.swing = 1;
     hero.flip = !hero.flip;
   } else {
@@ -603,7 +639,7 @@ export function triggerSwing(hero) {
 /** 每幀動畫：走路擺手腳、依武器種類揮砍 */
 export function animateHero(hero, t, dt, { moving = false, mounted = false } = {}) {
   if (mounted) moving = false; // 騎乘中：腳不走路，改成跨坐姿勢
-  const speed = hero.wtype === 'dual' ? 8 : hero.wtype === 'katana' ? 5 : 4;
+  const speed = hero.wtype === 'dual' || hero.wtype === 'fist' ? 8 : hero.wtype === 'katana' ? 5 : 4;
   hero.swing = Math.max(0, hero.swing - dt * speed);
   hero.swingL = Math.max(0, hero.swingL - dt * speed);
   const s = Math.sin(hero.swing * Math.PI);
@@ -623,6 +659,18 @@ export function animateHero(hero, t, dt, { moving = false, mounted = false } = {
     hero.armR.pivot.rotation.z = -0.1 + s * 0.15;
     hero.armL.pivot.rotation.x = -0.75 - s * 0.7;
     hero.armL.pivot.rotation.z = 0.35;
+  } else if (hero.wtype === 'scythe') {
+    // 鐮刀：雙手橫掃一大圈
+    hero.armR.pivot.rotation.x = -0.5 - s * 0.9;
+    hero.armR.pivot.rotation.z = -0.2 - s * 1.7;
+    hero.armL.pivot.rotation.x = -0.6 - s * 0.6;
+    hero.armL.pivot.rotation.z = 0.3 + s * 0.4;
+  } else if (hero.wtype === 'fist') {
+    // 拳套：左右直拳輪流（跟雙劍一樣用兩個揮擊計時）
+    hero.armR.pivot.rotation.x = (moving ? -walk * 0.3 : -0.9) - s * 0.9;
+    hero.armR.pivot.rotation.z = -0.25 + s * 0.2;
+    hero.armL.pivot.rotation.x = (moving ? walk * 0.3 : -0.9) - sl * 0.9;
+    hero.armL.pivot.rotation.z = 0.25 - sl * 0.2;
   } else if (hero.wtype === 'bow') {
     // 長弓：左手持弓往前伸，右手拉弦（出手時往後一拉再放）
     hero.armL.pivot.rotation.x = (moving ? -0.9 : -1.2) - s * 0.3;

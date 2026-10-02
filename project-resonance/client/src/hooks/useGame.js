@@ -131,6 +131,18 @@ export function useGame() {
   const doLock = useCallback((uid, lock) => act(() => api.lock(uid, lock)), [act]);
   const doChangeMap = useCallback((mapId) => act(() => api.changeMap(mapId)), [act]);
   const doGoTown = useCallback(() => act(() => api.goTown()), [act]);
+  const doGoField = useCallback(() => act(() => api.goField()), [act]);
+  const doTalent = useCallback((id) => act(() => api.talent(id)).then((r) => { if (r) vibrate(15); return r; }), [act]);
+  const doTalentReset = useCallback(() => act(() => api.talentReset()), [act]);
+  const gotText = (r) => [r.essence && `💠${r.essence}`, r.eggs && `🥚×${r.eggs}`, r.points && `成就點 +${r.points}`].filter(Boolean).join('、');
+  const doClaim = useCallback(async (fn, label) => {
+    const r = await act(fn);
+    if (r) { vibrate([20, 30, 40]); pushEvent({ type: 'info', text: `🎁 ${label}：${gotText(r)}` }); }
+    return r;
+  }, [act, pushEvent]);
+  const doDailyClaim = useCallback((i) => doClaim(() => api.dailyClaim(i), '任務完成'), [doClaim]);
+  const doDailyChest = useCallback(() => doClaim(() => api.dailyChest(), '每日寶箱'), [doClaim]);
+  const doAchieveClaim = useCallback((id, tier) => doClaim(() => api.achieveClaim(id, tier), '成就達成'), [doClaim]);
   const doTravel = useCallback((id) => act(() => api.travelToFriend(id)), [act]);
   const doBuyMount = useCallback(async (id) => {
     const r = await act(() => api.buyMount(id));
@@ -176,7 +188,8 @@ export function useGame() {
     player, config, events, error, online, booting, killsPerMin,
     login, register, logout, pushEvent,
     doCraft, doEquip, doEnhance, doReroll, doDismantle, doLock, doChangeMap, doGoTown, doTravel,
-    doBuyMount, doUpgradeMount, doEquipMount, doCraftWing, doUpgradeWing, doEquipWing, doRecruitPartner, doDeployPartner, doUpgradePartner, doTrialStart, doTrialEnd, doRaidStart, doPet, doRebirth, doClaimAdmin,
+    doBuyMount, doUpgradeMount, doEquipMount, doCraftWing, doUpgradeWing, doEquipWing, doRecruitPartner, doDeployPartner, doUpgradePartner, doTrialStart, doTrialEnd, doRaidStart, doPet, doRebirth, doClaimAdmin, doGoField,
+    doTalent, doTalentReset, doDailyClaim, doDailyChest, doAchieveClaim,
   };
 }
 

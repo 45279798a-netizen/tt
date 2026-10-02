@@ -18,11 +18,16 @@ export const WEAPON_TYPES = {
   // 長槍：中距離直線穿刺、雷龍系；長弓：遠程射手、風系（第一區就做得出來）
   spear:  { id: 'spear',  name: '長槍', atkMul: 0.86, dpsMul: 1.163, interval: 0.55, radius: 5.2 },
   bow:    { id: 'bow',    name: '長弓', atkMul: 0.9,  dpsMul: 1.111, interval: 0.55, radius: 9.0 },
+  // 鐮刀：中距離大範圍橫掃、暗影系；拳套：超近距離極快連打、烈火系
+  scythe: { id: 'scythe', name: '鐮刀', atkMul: 0.95, dpsMul: 1.053, interval: 0.7,  radius: 4.8 },
+  fist:   { id: 'fist',   name: '拳套', atkMul: 0.66, dpsMul: 1.515, interval: 0.22, radius: 2.8 },
 };
-const STAFF_NAMES = { 3: '烈陽星杖', 4: '幽沼星杖', 5: '星界星杖' };
+const STAFF_NAMES = { 3: '烈陽星杖', 4: '幽沼星杖', 5: '星界星杖', 6: '深潮星杖', 7: '龍魂星杖' };
 const EXTRA_NAMES = {
-  spear: ['翠刺長槍', '熔岩龍槍', '霜牙冰槍', '日輪聖槍', '幽沼魔槍', '星界天槍'],
-  bow: ['翠羽長弓', '炎心火弓', '霜語冰弓', '烈陽金弓', '幽影魔弓', '星辰神弓'],
+  spear: ['翠刺長槍', '熔岩龍槍', '霜牙冰槍', '日輪聖槍', '幽沼魔槍', '星界天槍', '海皇三叉戟', '龍骸穿心槍'],
+  bow: ['翠羽長弓', '炎心火弓', '霜語冰弓', '烈陽金弓', '幽影魔弓', '星辰神弓', '潮汐珊瑚弓', '龍脊破天弓'],
+  scythe: ['翠藤鐮', '熔獄鐮', '霜魂鐮', '日蝕鐮', '幽冥鐮', '星滅鐮', '深淵潮鐮', '龍骨死神鐮'],
+  fist: ['翠葉拳套', '熔岩拳套', '霜牙拳套', '烈陽拳套', '幽沼拳套', '星界拳套', '海潮拳套', '龍爪拳套'],
 };
 export const SLOT_LABEL = { weapon: '武器', helm: '頭盔', armor: '胸甲', gloves: '護手', boots: '護腿' };
 
@@ -33,6 +38,8 @@ const MONSTERS = [
   { monster: '烈陽守衛', set: '烈陽', mats: ['日輝砂', '太陽晶核'], weapon: ['烈陽大劍', '日冕太刀', '曜光雙刃'] },
   { monster: '沼影巨魔', set: '幽沼', mats: ['腐沼苔', '幽影晶'], weapon: ['幽沼大劍', '影蝕太刀', '沼霧雙刃'] },
   { monster: '星界巨魔', set: '星界', mats: ['星塵碎片', '天穹之心'], weapon: ['星界大劍', '天穹太刀', '星辰雙刃'] },
+  { monster: '珊瑚海妖', set: '潮汐', mats: ['潮汐鱗', '深海明珠'], weapon: ['潮汐大劍', '海嵐太刀', '珊瑚雙刃'] },
+  { monster: '骸骨龍兵', set: '龍骸', mats: ['龍骨碎片', '龍魂結晶'], weapon: ['龍骸大劍', '龍牙太刀', '龍爪雙刃'] },
 ];
 
 // 素材掉落率（每擊殺一隻的期望值，伺服器用累積小數結算，不靠運氣）
@@ -77,7 +84,7 @@ MONSTERS.forEach((m, i) => {
   for (const [slot, p] of Object.entries(PIECES)) {
     if (slot === 'weapon') {
       // 同一隻魔物可以做三種武器（id：大劍沿用舊的 s0_weapon，存檔相容）
-      ['great', 'katana', 'dual', 'staff', 'spear', 'bow'].forEach((wt, j) => {
+      ['great', 'katana', 'dual', 'staff', 'spear', 'bow', 'scythe', 'fist'].forEach((wt, j) => {
         if (i < (WEAPON_TYPES[wt].fromSet ?? 0)) return; // 星杖：第四章起
         const id = wt === 'great' ? `s${i}_weapon` : `s${i}_${wt}`;
         ITEMS[id] = {

@@ -50,7 +50,7 @@ const invites = new Map();
 
 // ── 送訊息（WebSocket 直接送，輪詢模式先排隊） ──
 function send(c, obj) {
-  if (!c) return;
+  if (!c || c.bot) return; // AI 玩家沒有連線，不用送
   if (c.ws) { if (c.ws.readyState === 1) c.ws.send(JSON.stringify(obj)); }
   else if (c.queue.length < 80) c.queue.push(obj);
 }
@@ -122,17 +122,33 @@ function partyCount(id) {
   let n = 0;
   for (const o of clients.values()) {
     if (o.id === id || o.duel || Date.now() - o.lastSeen > 15_000) continue;
+    if (o.bot && me.zone !== 'F') continue; // AI 玩家只在緣起獵場算組隊加成
     if (publicInfo(o.id)?.zone === me.zone) n++;
   }
   return n;
 }
 setPartyCounter(partyCount);
-setBossPresence((mapId) => [...clients.values()].filter((o) => Date.now() - o.lastSeen < 15_000 && !o.duel && (() => { const i = publicInfo(o.id); return i && !i.inTown && i.mapId === mapId; })()).map((o) => o.id));
+setBossPresence((mapId) => [...clients.values()].filter((o) => Date.now() - o.lastSeen < 15_000 && !o.duel && publicInfo(o.id)?.zone === mapId).map((o) => o.id));
 setPartyMembers((id) => {
   const me = publicInfo(id);
   if (!me || me.inTown) return [];
-  return [...clients.values()].filter((o) => o.id !== id && !o.duel && Date.now() - o.lastSeen < 15_000 && publicInfo(o.id)?.zone === me.zone).map((o) => o.id);
+  return [...clients.values()].filter((o) => o.id !== id && !o.bot && !o.duel && Date.now() - o.lastSeen < 15_000 && publicInfo(o.id)?.zone === me.zone).map((o) => o.id);
 });
+
+// ── AI 玩家（bots.js）用：沒有 socket 的「假連線」，一樣出現在同地圖、一樣能放特效 ──
+export function botJoin(id) {
+  const c = newClient(id, null);
+  c.bot = true;
+  clients.set(id, c);
+  return c;
+}
+export function botLeave(id) {
+  const c = clients.get(id);
+  if (c?.bot) clients.delete(id);
+}
+export const botFx = (c, kind) => { c.fxBudget = 20; broadcastFx(c, kind); };
+/** 某個區域有沒有真人在線（沒有真人的地方 AI 不用算移動） */
+export const humansIn = (zone) => [...clients.values()].some((o) => !o.bot && publicInfo(o.id)?.zone === zone);
 
 /** 世界王：在同一張狩獵地圖才看得到 */
 function bossOf(c) {
@@ -145,8 +161,7 @@ function huntingCount(mapId) {
   let n = 0;
   for (const c of clients.values()) {
     if (Date.now() - c.lastSeen > 15_000) continue;
-    const info = publicInfo(c.id);
-    if (info && !info.inTown && info.mapId === mapId) n++;
+    if (publicInfo(c.id)?.zone === mapId) n++;
   }
   return n;
 }
@@ -171,6 +186,7 @@ function duelRequest(c, targetId, mode) {
   const t = clients.get(targetId);
   const me = publicInfo(c.id);
   if (!t || !me || targetId === c.id) return send(c, { t: 'duel_info', text: '對方不在線上' });
+  if (t.bot) return send(c, { t: 'duel_info', text: `${publicInfo(targetId)?.name} 正忙著打怪，婉拒了決鬥` });
   if (c.duel || t.duel) return send(c, { t: 'duel_info', text: '對方正在決鬥中' });
   if (me.inTown || publicInfo(targetId)?.inTown) return send(c, { t: 'duel_info', text: '村莊是和平區，到狩獵地圖才能決鬥' });
   if (invites.has(targetId)) return send(c, { t: 'duel_info', text: '對方還有別的邀請沒回覆' });
@@ -222,13 +238,13 @@ function startDuel(ca, cb, mode) {
 
 // 各招式在 PvP 的倍率（以「每秒傷害」為單位）、射程、最短間隔（秒）
 // 技能的數值統一定義在 skills.js
-const BASIC_CD = { great: 0.4, katana: 0.3, dual: 0.25, staff: 0.35, spear: 0.35, bow: 0.35 };
+const BASIC_CD = { great: 0.4, katana: 0.3, dual: 0.25, staff: 0.35, spear: 0.35, bow: 0.35, scythe: 0.4, fist: 0.25 };
 function pvpMove(k, wtype) {
   const w = WEAPON_TYPES[wtype] ?? WEAPON_TYPES.great;
   if (k === 'atk') return { mult: w.interval, range: w.radius + (wtype === 'katana' ? 3 : 1.5), gap: w.interval * 0.45 };
   if (k === 'basic') { // 強力普攻可以狂點：三職業狂點都 ≈ 每秒 2 秒份（冷卻跟前端 WEAPON_STYLE 一致）
     const cd = BASIC_CD[wtype] ?? 0.4;
-    return { mult: cd * 2, range: { katana: 9, staff: 11, spear: 8, bow: 11 }[wtype] ?? 6, gap: cd * 0.85 };
+    return { mult: cd * 2, range: { katana: 9, staff: 11, spear: 8, bow: 11, scythe: 7, fist: 5 }[wtype] ?? 6, gap: cd * 0.85 };
   }
   const sk = SKILLS[k];
   if (!sk || sk.cls !== wtype) return null; // 不是自己職業的技能 → 不算
@@ -305,6 +321,7 @@ export function attachRealtime(httpServer) {
     const now = Date.now();
     for (const c of [...clients.values()]) {
       c.fxBudget = Math.min(20, c.fxBudget + 2);
+      if (c.bot) { c.lastSeen = now; continue; }
       if (!c.ws && now - c.lastSeen > HTTP_TIMEOUT_MS) { leave(c); continue; }
       if (c.ws?.readyState === 1) c.ws.send(JSON.stringify({ t: 'state', players: visibleTo(c), boss: bossOf(c) }));
     }
