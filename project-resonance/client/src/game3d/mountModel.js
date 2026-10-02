@@ -5,6 +5,7 @@
 // 角色騎上去：hero.root 掛在 mount.seat 底下
 // ─────────────────────────────────────────────
 import * as THREE from 'three';
+import { MOUNT_GLB, glbReady, loadMountGlb, createGlbMount, animateGlbMount, silhouette } from './mountGlb.js';
 
 const lam = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
 const glow = (color, opacity = 0.9) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -346,7 +347,11 @@ function whale(def, g) {
   return { legs: [], head: null, tail, saddleY: 2.05, phase: [], fins, glowMat: belly, swimmer: true };
 }
 
-const BUILDERS = { horse, raptor, wolf, pegasus, dragon, phoenix, qilin, whale };
+/** 冰霜坤 / 赤翼魔龍：模型還沒載好時先用的程式外觀 */
+function frostfox(def, g) { return wolf(def, g); }
+function wyvern(def, g) { return dragon(def, g); }
+
+const BUILDERS = { horse, raptor, wolf, pegasus, dragon, phoenix, qilin, whale, frostfox, wyvern };
 
 /**
  * @param def 伺服器 config.mounts[id]
@@ -359,13 +364,42 @@ export function createMount(def) {
   const seat = new THREE.Group();
   seat.position.y = parts.saddleY;
   body.add(seat);
-  return { root, body, seat, def, gait: 0, ...parts };
+  const m = { root, body, seat, def, gait: 0, ...parts };
+  // 有 3D 模型的坐騎：已經載好就直接換上；還沒就先用程式外觀，背景載入完成後在 animateMount 換掉
+  if (MOUNT_GLB[def.model]) {
+    if (glbReady(def.model)) useGlb(m);
+    else { m.glbPending = true; loadMountGlb(def.model); }
+  }
+  return m;
+}
+
+/** 把程式外觀換成 3D 模型（seat 保留，騎在上面的角色不用重掛） */
+function useGlb(m) {
+  const g = createGlbMount(m.def.model);
+  m.glbPending = false;
+  if (!g) return;
+  for (const c of [...m.body.children]) {
+    if (c === m.seat) continue;
+    m.body.remove(c);
+    c.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
+  }
+  m.body.add(g.obj);
+  m.seat.position.set(0, g.seatY, g.seatZ);
+  if (m.silhouette) silhouette(g.obj);
+  Object.assign(m, { glb: g, legs: [], head: null, tail: null, wings: null, halo: null, fins: null, segs: null, swimmer: false, hoverBird: false, glowMat: null });
 }
 
 /** 每幀動畫：跑步（四足 / 雙足）、頭尾擺動、天馬拍翅 */
 export function animateMount(m, t, dt, { moving = false, speed = 1 } = {}) {
   const target = moving ? 1 : 0;
   m.gait += (target - m.gait) * Math.min(1, dt * 8);
+  if (m.glbPending && glbReady(m.def.model)) useGlb(m);
+  if (m.glb) {
+    const bob = animateGlbMount(m.glb, t, dt, m.gait, speed);
+    m.body.position.y = (m.glb.cfg.hover ? Math.sin(t * 1.6) * 0.12 : 0) + bob;
+    m.body.rotation.x = m.glb.gait === 'trot' ? Math.sin(t * 9) * 0.02 * m.gait : 0;
+    return;
+  }
   if (m.swimmer) { // 星辰鯨：在空中慢慢游，胸鰭與尾鰭擺動
     const sw = moving ? 4 : 1.6;
     m.body.position.y = 0.3 + Math.sin(t * sw * 0.5) * 0.15;
@@ -420,5 +454,9 @@ export function animateMount(m, t, dt, { moving = false, speed = 1 } = {}) {
 }
 
 export function disposeMount(m) {
-  m.root.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
+  m.root.traverse((o) => {
+    if (o.userData.shared) return; // 3D 模型的幾何 / 材質是所有實體共用的
+    o.geometry?.dispose();
+    if (!o.material?.userData?.shared) o.material?.dispose?.();
+  });
 }

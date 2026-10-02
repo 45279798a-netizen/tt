@@ -20,6 +20,7 @@ export default function HudPlayer({ player, online }) {
       <div className="flex items-center gap-1.5 px-2.5 pt-1.5 text-[11px]">
         <span className={`size-1.5 shrink-0 rounded-full ${online ? 'bg-emerald-400' : 'animate-pulse bg-red-500'}`} />
         <span className="truncate font-medium">{player.name}</span>
+        {player.rebirth > 0 && <span className="shrink-0 rounded bg-violet-500/30 px-1 text-violet-100" title={player.title}>{player.rebirth}轉</span>}
         <span className="num ml-auto shrink-0 rounded bg-white/10 px-1">Lv.{player.level}</span>
       </div>
       <div className="flex items-end justify-between px-2.5 pb-1.5">

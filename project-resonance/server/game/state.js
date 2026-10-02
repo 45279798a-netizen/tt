@@ -19,6 +19,7 @@ import {
   rollItem, enhanceCap, enhanceCost, rerollCost, dismantleYield, reroll, INV_LIMIT,
 } from './gear.js';
 import { CLASS_SKILLS } from './skills.js';
+import { REBIRTH_LV, rebirthOf, rebirthNext, rebirthBonus, titleOf, REBIRTH_COLORS } from './rebirth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -261,6 +262,10 @@ export function recordDuel(winnerId, loserId) {
   scheduleSave();
 }
 
+/** 管理員系統用 */
+export const allPlayers = () => Object.values(players);
+export const saveSoon = () => scheduleSave();
+
 export function getPlayer(id) {
   const p = players[id];
   if (!p) throw new GameError('找不到角色，請重新登入', 404);
@@ -291,7 +296,7 @@ export function settle(p, report = null, now = Date.now()) {
   const elapsed = Math.min(gap, MAX_GAP_SEC);
   const r = calcRates(p);
   // 上限：理論秒傷（含技能）× 寬限，再多留一隻菁英的份，避免剛好打倒菁英那次被砍掉
-  const kps = Math.min(r.killsPerSec * (1 + SKILL_DPS_BONUS) * partnerMul(p), MAX_KILLS_PER_SEC);
+  const kps = Math.min(r.killsPerSec * (1 + SKILL_DPS_BONUS * (1 + rebirthBonus(rebirthOf(p)).skillDmg)) * partnerMul(p), MAX_KILLS_PER_SEC);
   const cap = Math.ceil(kps * elapsed * KILL_SLACK) + ELITE_VALUE;
   const normal = Math.max(0, Math.floor(Number(report.kills) || 0));
   const elite = Math.max(0, Math.floor(Number(report.elites) || 0));
@@ -311,8 +316,8 @@ export function settle(p, report = null, now = Date.now()) {
   result.kills = Math.min(normal + elite, value);
   if (p.trial && now <= p.trial.endsAt + 3000 && p.mapId === p.trial.mapId) p.trial.kills += result.kills;
   result.gold = gold;
-  while (p.exp >= expToNext(p.level)) {
-    p.exp -= expToNext(p.level);
+  while (p.exp >= expToNext(p.level, rebirthOf(p))) {
+    p.exp -= expToNext(p.level, rebirthOf(p));
     p.level += 1;
     result.levelsGained += 1;
   }
@@ -369,7 +374,7 @@ export function equip(p, uid) {
 export function enhanceItem(p, uid) {
   needTown(p);
   const it = findInst(p, uid);
-  const cap = enhanceCap(it);
+  const cap = enhanceCap(it, rebirthOf(p));
   if (it.lv >= cap) throw new GameError(`已達強化上限 +${cap}`);
   const c = enhanceCost(it);
   if (p.gold < c.gold) throw new GameError('金幣不足');
@@ -671,6 +676,23 @@ export function synth(p, id, times = 1) {
   return { to: Object.fromEntries(Object.entries(r.to).map(([k, v]) => [k, v * n])) };
 }
 
+// ── 轉職（村莊的轉職殿堂）──────────────────────
+export function doRebirth(p) {
+  if (!p.inTown) throw new GameError('要在村莊的轉職殿堂才能轉職');
+  const next = rebirthNext(p, MAPS);
+  if (!next) throw new GameError('已經是最高轉數了');
+  if (p.level < REBIRTH_LV) throw new GameError(`要到 Lv.${REBIRTH_LV} 才能轉職`);
+  if (p.maxMap < next.needMap) throw new GameError(`第 ${next.turn} 轉要先到過「${next.needMapName}」`);
+  payCost(p, next.cost);
+  p.rebirth = rebirthOf(p) + 1;
+  p.level = 1;
+  p.exp = 0;
+  p.eggs = (p.eggs || 0) + next.reward.eggs;
+  scheduleSave();
+  console.log(`[轉職] ${p.name} 完成第 ${p.rebirth} 轉（${titleOf(p, calcStats(p).wtype)}）`);
+  return { turn: p.rebirth, title: titleOf(p, calcStats(p).wtype), color: REBIRTH_COLORS[p.rebirth - 1] };
+}
+
 // ── 魔物潮（3 分鐘生存挑戰）────────────────────
 // 在目前的狩獵地圖開始：怪會一波波從四面八方湧來、越來越多越硬
 // 擊殺照常由 settle 驗證結算；結束時依「驗證過的擊殺數」額外發獎勵
@@ -864,7 +886,9 @@ export function snapshot(p) {
     name: p.name,
     level: p.level,
     exp: p.exp,
-    expToNext: expToNext(p.level),
+    expToNext: expToNext(p.level, rebirthOf(p)),
+    rebirth: rebirthOf(p), title: titleOf(p, stats.wtype), rebirthNext: rebirthNext(p, MAPS),
+    admin: !!p.admin,
     gold: p.gold,
     totalKills: p.totalKills,
     mapId: p.mapId,
@@ -874,7 +898,7 @@ export function snapshot(p) {
     inv: p.inv.map((it) => ({
       ...it,
       ...powers[it.uid],
-      cap: enhanceCap(it), enhanceCost: enhanceCost(it), rerollCost: rerollCost(it), yield: dismantleYield(it),
+      cap: enhanceCap(it, rebirthOf(p)), enhanceCost: enhanceCost(it), rerollCost: rerollCost(it), yield: dismantleYield(it),
     })),
     equipped: p.equipped,
     gear: gearOf(p),
@@ -928,6 +952,7 @@ export function publicInfo(id) {
   const stats = calcStats(p);
   return {
     id: p.id, name: p.name, level: p.level, mapId: p.mapId,
+    rebirth: rebirthOf(p), title: titleOf(p, stats.wtype), skillMul: stats.skillMul,
     equipped: gearOf(p), atk: stats.atk, dps: stats.dps, wtype: stats.wtype,
     cp: calcCP(stats), pvp: p.pvp, zone: p.inTown ? -1 : p.mapId, inTown: p.inTown,
     mount: p.mount, mountSpeed: stats.mountSpeed,

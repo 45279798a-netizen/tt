@@ -25,14 +25,17 @@ import {
   buyEgg, hatchEgg, feedPet, equipPet,
   manorCollect, manorBuild, manorUpgrade, manorRemove, manorInfo, manorVisit, synth, synthRecipes,
   friendRequest, friendAnswer, friendRemove, friendList, travelToFriend,
-  changeMap, snapshot, leaderboard, GameError,
+  changeMap, snapshot, leaderboard, GameError, doRebirth,
 } from './game/state.js';
+import { initAdmin, claimAdmin, needAdmin, adminPlayers, adminGive, adminAnnounce, adminRevoke } from './game/admin.js';
+import { REBIRTH_LV, REBIRTH_MAX, REBIRTH_PER, CLASS_TITLES, REBIRTH_COLORS } from './game/rebirth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist');
 
 loadSave();
+const ADMIN_KEY = initAdmin();
 const app = express();
 app.use(express.json());
 
@@ -73,6 +76,7 @@ app.get('/api/config', route(() => ({
   synthRecipes: synthRecipes(), buildings: BUILDINGS, buildMaxLv: BUILD_MAX_LV, manorPlots: PLOTS,
   partnerCosts: Array.from({ length: PARTNER_MAX_LV }, (_, i) => partnerUpgradeCost(i + 1)),
   mountMaxLv: MOUNT_MAX_LV, collectAtk: COLLECT_ATK, partyBonus: PARTY_BONUS, partyMax: PARTY_MAX,
+  rebirth: { level: REBIRTH_LV, max: REBIRTH_MAX, per: REBIRTH_PER, titles: CLASS_TITLES, colors: REBIRTH_COLORS },
 })));
 
 // ── 帳號 ──────────────────────────────────────
@@ -148,6 +152,18 @@ app.post('/api/me/pet/equip', action((p, b) => equipPet(p, b.id ? String(b.id) :
 // 素材合成
 app.post('/api/me/synth', action((p, b) => synth(p, String(b.id || ''), Number(b.times) || 1)));
 app.post('/api/me/trial/end', action((p) => endTrial(p)));
+// 轉職（村莊的轉職殿堂）
+app.post('/api/me/rebirth', action((p) => doRebirth(p)));
+// 管理員：輸入密鑰成為管理員 → 發放物資、全服公告
+app.post('/api/me/admin/claim', action((p, b) => claimAdmin(p, b.key)));
+app.get('/api/admin/players', route((req) => { const p = me(req); needAdmin(p); return { list: adminPlayers(isOnline) }; }));
+app.post('/api/admin/give', route((req) => {
+  const r = adminGive(me(req), req.body || {}, isOnline);
+  deliver(r.events);
+  return { count: r.count, text: r.text, short: r.short };
+}));
+app.post('/api/admin/announce', route((req) => { deliver(adminAnnounce(me(req), req.body?.text)); return { ok: true }; }));
+app.post('/api/admin/revoke', route((req) => adminRevoke(me(req), req.body?.id)));
 app.post('/api/me/partner/deploy', action((p, b) => deployPartner(p, b.id ? String(b.id) : null)));
 app.post('/api/me/wing/craft', action((p, b) => craftWing(p, String(b.id || ''))));
 app.post('/api/me/wing/upgrade', action((p, b) => upgradeWing(p, String(b.id || ''))));
@@ -208,6 +224,7 @@ const server = app.listen(PORT, () => {
   console.log('\n⚔️  Project Resonance 私服已啟動');
   console.log(`   本機:     http://localhost:${PORT}`);
   lan.forEach((ip) => console.log(`   區域網路: http://${ip}:${PORT}`));
+  console.log(`   🔑 管理員密鑰: ${ADMIN_KEY}（遊戲裡「角色 → 管理員」輸入，就能發放物資；存在 server/data/admin.json）`);
   if (!fs.existsSync(CLIENT_DIST)) {
     console.log('   (開發模式：前端請開 Vite 顯示的網址，預設 :5173)');
   } else {

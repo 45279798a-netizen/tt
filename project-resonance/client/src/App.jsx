@@ -17,6 +17,8 @@ import StablePage from './pages/StablePage.jsx';
 import PartnerPage from './pages/PartnerPage.jsx';
 import ManorPage from './pages/ManorPage.jsx';
 import PetPage from './pages/PetPage.jsx';
+import RebirthPage from './pages/RebirthPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
 
 export default function App() {
   const game = useGame();
@@ -36,7 +38,9 @@ export default function App() {
     const close = () => setPanel(null);
     const pages = {
       bag: <BagPage player={player} config={config} onEquip={game.doEquip} onLock={game.doLock} onDismantle={game.doDismantle} />,
-      char: <CharacterPage player={player} config={config} onEquip={game.doEquip} onLogout={game.logout}
+      rebirth: <RebirthPage player={player} config={config} onRebirth={game.doRebirth} />,
+      admin: player.admin ? <AdminPage config={config} pushEvent={game.pushEvent} /> : null,
+      char: <CharacterPage player={player} config={config} onEquip={game.doEquip} onLogout={game.logout} onClaimAdmin={game.doClaimAdmin}
         onCraftWing={game.doCraftWing} onUpgradeWing={game.doUpgradeWing} onEquipWing={game.doEquipWing} />,
       friends: (
         <FriendsPage player={player}
@@ -63,10 +67,10 @@ export default function App() {
           active={!portrait} killsPerMin={game.killsPerMin} pushEvent={game.pushEvent} onTrialStart={game.doTrialStart} onTrialEnd={game.doTrialEnd} onRaidStart={game.doRaidStart} onChangeMap={game.doChangeMap} onGoTown={game.doGoTown}
           onNpc={(id) => setPanel(id)}
           topLeft={<HudPlayer player={player} online={game.online} />}
-          topRight={<MenuBar open={panel} onOpen={(id) => setPanel(panel === id ? null : id)} pwa={pwa} badges={{ friends: player.friendReqs, bag: player.inv.filter((x) => x.delta > 0).length }} />}
+          topRight={<MenuBar open={panel} onOpen={(id) => setPanel(panel === id ? null : id)} pwa={pwa} admin={player.admin} badges={{ friends: player.friendReqs, bag: player.inv.filter((x) => x.delta > 0).length }} />}
         />
         {panel && pages[panel] && (
-          <SidePanel title={title} wide={['char', 'smith', 'bag', 'stable', 'tavern', 'partner', 'manor', 'pet'].includes(panel)} onClose={close}>
+          <SidePanel title={title} wide={['char', 'smith', 'bag', 'stable', 'tavern', 'partner', 'manor', 'pet', 'admin'].includes(panel)} onClose={close}>
             {pages[panel]}
           </SidePanel>
         )}

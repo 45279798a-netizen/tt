@@ -36,6 +36,18 @@ export const SKILLS = {
   s_meteor: { cls: 'staff', name: '隕星墜落', icon: '☄️', cd: 9,  desc: '前方降下 5 顆隕星', pvp: { mult: 5.5, range: 12 } },
   s_beam:   { cls: 'staff', name: '星河光束', icon: '🌠', cd: 11, desc: '向前持續放出 1.2 秒星光束', pvp: { mult: 6, range: 16 } },
   s_judge:  { cls: 'staff', name: '星界審判', icon: '🌌', cd: 20, desc: '巨大星陣 + 星雨 + 終焉崩落', pvp: { mult: 8.5, range: 14 } },
+
+  // ── 長槍：中距離、直線穿刺、雷龍 ──
+  sp_thrust: { cls: 'spear', name: '連環突刺', icon: '🔱', cd: 5,  desc: '向前連續 5 段突刺', pvp: { mult: 3.5, range: 9 } },
+  sp_leap:   { cls: 'spear', name: '龍騰槍', icon: '🐉', cd: 8,  desc: '躍起後把槍插進地面，雷光炸裂', pvp: { mult: 5, range: 10 } },
+  sp_drill:  { cls: 'spear', name: '螺旋穿雲', icon: '🌪️', cd: 10, desc: '擲出螺旋槍氣，一路往前鑽', pvp: { mult: 6, range: 14 } },
+  sp_dragon: { cls: 'spear', name: '天龍破', icon: '⚡', cd: 18, desc: '喚出雷龍直線貫穿，沿路落雷', pvp: { mult: 8, range: 16 } },
+
+  // ── 長弓：遠程、射手、風 ──
+  b_multi:  { cls: 'bow', name: '扇形散射', icon: '🏹', cd: 5,  desc: '一次射出 7 支扇形箭', pvp: { mult: 3.2, range: 12 } },
+  b_pierce: { cls: 'bow', name: '穿雲箭', icon: '🎯', cd: 8,  desc: '蓄力後射出貫穿一切的巨箭', pvp: { mult: 5.5, range: 20 } },
+  b_rain:   { cls: 'bow', name: '箭雨', icon: '🌧️', cd: 11, desc: '前方降下 1.2 秒箭雨', pvp: { mult: 5.5, range: 13 } },
+  b_storm:  { cls: 'bow', name: '千矢星落', icon: '🌠', cd: 18, desc: '巨大風陣 + 漫天星矢 + 龍捲收尾', pvp: { mult: 8, range: 14 } },
 };
 
 /** 每個職業的固定技能（順序 = 技能盤由下往上的位置） */
@@ -44,4 +56,6 @@ export const CLASS_SKILLS = {
   katana: ['k_spirit', 'k_mikiri', 'k_iai', 'k_sakura'],
   dual: ['d_demon', 'd_shadow', 'd_blades', 'd_frenzy'],
   staff: ['s_orb', 's_meteor', 's_beam', 's_judge'],
+  spear: ['sp_thrust', 'sp_leap', 'sp_drill', 'sp_dragon'],
+  bow: ['b_multi', 'b_pierce', 'b_rain', 'b_storm'],
 };

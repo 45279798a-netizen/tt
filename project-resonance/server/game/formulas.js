@@ -7,6 +7,7 @@ import { mainMul, sumAffixes } from './gear.js';
 import { mountStats } from './mounts.js';
 import { wingStats } from './wings.js';
 import { petStats } from './pets.js';
+import { rebirthBonus, rebirthOf, REBIRTH_EXP_MUL } from './rebirth.js';
 
 // 目前 3 張狩獵地圖（地形設計在 client/src/game3d/maps.js）
 const MAP_NAMES = ['翠綠森林', '熔岩峽谷', '霜雪遺跡', '烈陽聖域', '幽影沼澤', '星界天穹'];
@@ -39,8 +40,9 @@ export const partyMul = (others) => 1 + Math.min(Math.max(0, others), PARTY_MAX)
 export const LOW_MAP_PENALTY = 0.3;
 export const farmMul = (p, mapId) => LOW_MAP_PENALTY ** Math.max(0, (p.maxMap ?? 0) - mapId);
 
-export function expToNext(level) {
-  return Math.floor(20 * 1.15 ** level);
+/** rb = 轉職次數：轉職後同一個等級需要更多經驗 */
+export function expToNext(level, rb = 0) {
+  return Math.floor(20 * 1.15 ** level * (1 + rb * REBIRTH_EXP_MUL));
 }
 
 /** 身上穿的裝備實體：{ weapon: inst|null, helm: ..., ... } */
@@ -70,6 +72,9 @@ export function calcStats(p) {
   // 寵物：出戰中的寵物加成
   const ps = petStats(p);
   aff.atkPct += ps.atkPct; aff.goldPct += ps.goldPct; aff.dropPct += ps.dropPct; aff.expPct += ps.expPct;
+  // 轉職：永久加成
+  const rb = rebirthBonus(rebirthOf(p));
+  aff.atkPct += rb.atkPct; aff.hpPct += rb.hpPct; aff.critRate += rb.critRate; aff.critDmg += rb.critDmg; aff.expPct += rb.expPct;
 
   const w = eq.weapon;
   const wt = w ? ITEMS[w.base] : ITEMS.starter_weapon;
@@ -100,6 +105,7 @@ export function calcStats(p) {
     atk, def, hp, dps, wtype: type.id,
     critRate, critDmg, goldPct: aff.goldPct, expPct: aff.expPct, dropPct: aff.dropPct,
     mountSpeed: ms.speed,
+    rebirth: rebirthOf(p), skillMul: 1 + rb.skillDmg, cdr: rb.cdr,
   };
 }
 

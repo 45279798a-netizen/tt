@@ -63,6 +63,21 @@ export const MOUNTS = {
     bonus: { atkPct: [10, 0.8], goldPct: [10, 1], dropPct: [10, 1] },
     cost: { gold: 6_000_000_000, essence: 900, mats: { m4b: 120, m5b: 120, wr: 30 } },
   },
+  // ── 3D 模型新坐騎（client/public/models/mounts/）──
+  frostfox: {
+    id: 'frostfox', name: '冰霜坤', icon: '🦊', model: 'frostfox', tier: 2, reqMap: 2, speed: 1.7,
+    color: '#9fd4ff', accent: '#e8f8ff',
+    desc: '頭頂冰晶鹿角的靈狐，跑過的地面會結霜。抵達霜雪遺跡後可以喚醒',
+    bonus: { atkPct: [6, 0.6], dropPct: [8, 1] },
+    cost: { gold: 30_000_000, essence: 260, mats: { m2a: 400, m2b: 40, wf: 80 } },
+  },
+  wyvern: {
+    id: 'wyvern', name: '赤翼魔龍', icon: '🐲', model: 'wyvern', tier: 4, reqMap: 4, speed: 1.95,
+    color: '#2a3550', accent: '#ff3b2a',
+    desc: '張開赤紅雙翼的黑鱗魔龍，飛過的地方留下火星。抵達幽影沼澤後可以喚醒',
+    bonus: { atkPct: [9, 0.8], expPct: [10, 1], dropPct: [6, 0.8] },
+    cost: { gold: 700_000_000, essence: 700, mats: { m4a: 450, m4b: 45, wr: 24 } },
+  },
   pegasus: {
     id: 'pegasus', name: '星輝天馬', icon: '🦄', model: 'pegasus', tier: 3, speed: 1.8,
     color: '#f7f3ff', accent: '#f5c04a',

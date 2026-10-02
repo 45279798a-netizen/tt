@@ -165,6 +165,13 @@ export default function BattlePage({ player, config, events, active, killsPerMin
     return () => { s.onNpcNear = null; s.onNpcArrive = null; };
   }, [onNpc]);
 
+  // 轉職成功：播 3D 轉職儀式
+  useEffect(() => {
+    const h = (e) => sceneRef.current?.rebirthFx(e.detail.color);
+    window.addEventListener('resonance:rebirth', h);
+    return () => window.removeEventListener('resonance:rebirth', h);
+  }, []);
+
   // 好友頁按「決鬥」
   useEffect(() => {
     const h = (e) => setChallenge(e.detail);
@@ -219,6 +226,8 @@ export default function BattlePage({ player, config, events, active, killsPerMin
         if (m.t === 'duel_invite') setInvite(m);
         else if (m.t === 'friend_req') setInfo(`👋 ${m.name} 想加你好友，到「好友」接受`);
         else if (m.t === 'friend_info') setInfo(m.text);
+        else if (m.t === 'gift') pushEvent?.({ type: 'info', text: `🎁 ${m.from} 發給你：${m.text}${m.note ? `（${m.note}）` : ''}` });
+        else if (m.t === 'announce') setInfo(`📢 ${m.from}：${m.text}`);
         else if (m.t === 'duel_info') setInfo(m.text);
         else if (m.t === 'boss_spawn') setBossNews({ kind: 'spawn', ...m, at: Date.now() });
         else if (m.t === 'boss_flee') setBossNews({ kind: 'flee', ...m, at: Date.now() });

@@ -68,5 +68,10 @@ export const api = {
   upgradeMount: (id) => post('/me/mount/upgrade', { id }),
   equipMount: (id) => post('/me/mount/equip', { id }),
   rt: (body) => post('/rt', body),
+  rebirth: () => post('/me/rebirth', {}),
+  adminClaim: (key) => post('/me/admin/claim', { key }),
+  adminPlayers: () => request('/admin/players'),
+  adminGive: (body) => post('/admin/give', body),
+  adminAnnounce: (text) => post('/admin/announce', { text }),
   leaderboard: () => request('/leaderboard'),
 };

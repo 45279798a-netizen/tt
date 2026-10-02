@@ -85,6 +85,7 @@ export default function MountPreview({ def, equipped, items, locked = false, cla
     if (s.mount) { s.pivot.remove(s.mount.root); disposeMount(s.mount); s.mount = null; }
     if (!def) return;
     s.mount = createMount(def);
+    s.mount.silhouette = locked; // 3D 模型晚一點才載好時，換上去也要是剪影
     s.pivot.add(s.mount.root);
     s.mount.seat.add(s.hero.root);
     s.hero.root.position.set(0, -s.hero.hipY - 0.03, -0.05);
